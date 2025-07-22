@@ -227,7 +227,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Add title
         ctx.fillStyle = '#4A90E2';
         ctx.font = 'bold 32px Arial, sans-serif';
-        ctx.fillText('儿童命理与发展指南', canvas.width / 2, 60);
+        ctx.fillText('数字命理与发展指南', canvas.width / 2, 60);
         
         ctx.fillStyle = '#666666';
         ctx.font = '18px Arial, sans-serif';
@@ -544,7 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </li>
         `).join('');
 
-        return createSection('第三章：家长行动手册', `
+        let html = `
             <p>${introduction}</p>
 
             <h3>🎯 家长角色定位</h3>
@@ -561,10 +561,6 @@ document.addEventListener('DOMContentLoaded', () => {
             <h4>沟通关键 (设定界限)</h4>
             <ul>${renderCommKeys(guidanceCommunicationAndBoundaries.communicationKeys_Boundaries)}</ul>
 
-            <h3>🤝 人际与友谊风格</h3>
-            <p><strong>🌱 当前成长焦点：</strong>${friendshipAndCurrentFocus.socialAndFriendshipStyle}</p>
-            <p><strong>未来一年导航：</strong>${friendshipAndCurrentFocus.navigatingTheYearAhead}</p>
-
             ${karmicLessonFocus && karmicLessonFocus.title ? `
                 <h3>特别关注：${karmicLessonFocus.title}</h3>
                 <p>${karmicLessonFocus.description}</p>
@@ -572,7 +568,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
             <h3>💡 引导反思问题</h3>
             <ul>${reflectionQuestions.map(q => `<li>${q}</li>`).join('')}</ul>
-        `);
+        `;
+
+        // Friendship and Current Focus
+        if (chapter.friendshipAndCurrentFocus) {
+            html += createBreakdownBlock(
+                '🌱 社交与成长',
+                '',
+                [
+                    { title: '当前成长焦点', content: chapter.friendshipAndCurrentFocus.socialAndFriendshipStyle },
+                    { title: '未来一年导航', content: chapter.friendshipAndCurrentFocus.navigatingTheYearAhead }
+                ]
+            );
+        }
+
+        return createSection('第三章：家长行动手册', html);
     }
 
     function renderIgnitingPassions(chapter) {
