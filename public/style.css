@@ -267,7 +267,7 @@ footer {
     margin-bottom: 20px;
 }
 
-#generate-again-btn, #save-report-btn, #save-image-btn {
+#generate-again-btn, #save-image-btn {
     padding: 15px 30px;
     font-size: 1.1em;
     font-weight: bold;
@@ -287,17 +287,6 @@ footer {
     background: #27b9d3;
     transform: translateY(-3px);
     box-shadow: 0 6px 20px rgba(18, 236, 243, 0.5);
-}
-
-#save-report-btn {
-    background: var(--primary-color);
-    box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4);
-}
-
-#save-report-btn:hover {
-    background: #357abd;
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(74, 144, 226, 0.5);
 }
 
 #save-image-btn {
@@ -365,7 +354,7 @@ footer {
         align-items: stretch;
     }
 
-    #generate-again-btn, #save-report-btn, #save-image-btn {
+    #generate-again-btn, #save-image-btn {
         margin-bottom: 10px;
     }
 }
