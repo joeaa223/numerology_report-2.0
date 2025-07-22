@@ -382,3 +382,28 @@ footer {
 .comm-why {
     color: #dd8fff; /* An insightful purple */
 }
+
+.loader-progress-bar {
+    width: 80%;
+    height: 12px;
+    background: #e0e0e0;
+    border-radius: 8px;
+    margin: 0 auto 12px auto;
+    overflow: hidden;
+}
+
+.loader-progress-inner {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+    border-radius: 8px;
+    transition: width 0.4s ease;
+}
+
+.loader-message {
+    text-align: center;
+    color: #888;
+    font-size: 1.1em;
+    margin-top: 8px;
+    margin-bottom: 0;
+}

@@ -20,7 +20,12 @@
                 <input type="date" id="birthday-input" required>
                 <button id="generate-btn">生成报告</button>
             </div>
-            <div id="loader" class="loader" style="display: none;"></div>
+            <div id="loader" style="display: none;">
+                <div class="loader-progress-bar">
+                    <div class="loader-progress-inner" id="loader-progress-inner"></div>
+                </div>
+                <div class="loader-message">正在生成报告，可能需要1-2分钟，请耐心等待…</div>
+            </div>
             <div id="error-message" class="error-message" style="display: none;"></div>
             <div id="report-container" class="report-container">
                  <!-- Core data and chart will be inserted here -->

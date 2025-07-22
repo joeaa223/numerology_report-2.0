@@ -9,6 +9,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const reportContainer = document.getElementById('report-container');
     const inputSection = document.querySelector('.input-section');
 
+    let progressInterval = null;
+    function startProgressBar() {
+        const progressBar = document.getElementById('loader-progress-inner');
+        let width = 0;
+        progressBar.style.width = '0%';
+        progressInterval = setInterval(() => {
+            if (width < 90) {
+                width += Math.random() * 2 + 0.5; // Simulate slow progress
+                progressBar.style.width = width + '%';
+            }
+        }, 400);
+    }
+    function finishProgressBar() {
+        const progressBar = document.getElementById('loader-progress-inner');
+        if (progressInterval) clearInterval(progressInterval);
+        progressBar.style.width = '100%';
+        setTimeout(() => { progressBar.style.width = '0%'; }, 500);
+    }
+
     // Detect if user is on mobile device
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
 
@@ -26,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         reportContainer.innerHTML = '';
         errorMessage.style.display = 'none';
         loader.style.display = 'block';
+        startProgressBar();
         generateBtn.disabled = true;
 
         try {
@@ -67,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             // --- UI Cleanup ---
             loader.style.display = 'none';
+            finishProgressBar();
             generateBtn.disabled = false;
         }
     });
