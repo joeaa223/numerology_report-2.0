@@ -316,125 +316,189 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // Create a temporary container for image generation
-            const tempContainer = document.createElement('div');
-            tempContainer.style.cssText = `
-                position: absolute;
-                top: -9999px;
-                left: -9999px;
-                width: 800px;
-                font-family: 'Microsoft YaHei', 'SimSun', Arial, sans-serif;
-                background-color: white;
-                padding: 30px;
-                line-height: 1.6;
-                color: #333;
-            `;
-
-            // Add header
-            const header = document.createElement('div');
-            header.innerHTML = `
-                <h1 style="color: #4A90E2; text-align: center; margin-bottom: 10px; font-size: 32px;">儿童命理与发展指南</h1>
-                <p style="text-align: center; margin-bottom: 30px; font-size: 18px; color: #666;">生日：${birthDate}</p>
-                <hr style="border: 1px solid #4A90E2; margin-bottom: 30px;">
-            `;
-            tempContainer.appendChild(header);
-
-            // Clone and simplify the report content
-            const reportClone = reportContainer.cloneNode(true);
-            
-            // Apply styles for better image rendering
-            const applyImageStyles = (element) => {
-                if (element.nodeType === 1) {
-                    // Remove any problematic CSS classes and apply inline styles
-                    element.removeAttribute('class');
-                    
-                    const tagName = element.tagName.toLowerCase();
-                    switch(tagName) {
-                        case 'h2':
-                            element.style.cssText = 'color: #4A90E2; font-size: 24px; margin: 30px 0 15px 0; border-bottom: 2px solid #4A90E2; padding-bottom: 8px;';
-                            break;
-                        case 'h3':
-                            element.style.cssText = 'color: #666; font-size: 20px; margin: 20px 0 10px 0;';
-                            break;
-                        case 'h4':
-                            element.style.cssText = 'color: #333; font-size: 16px; margin: 15px 0 8px 0;';
-                            break;
-                        case 'p':
-                            element.style.cssText = 'color: #555; margin: 8px 0; font-size: 14px; line-height: 1.6;';
-                            break;
-                        case 'li':
-                            element.style.cssText = 'color: #555; margin: 5px 0; font-size: 14px; line-height: 1.6;';
-                            break;
-                        case 'div':
-                            if (element.querySelector('.value')) {
-                                // Data card
-                                element.style.cssText = 'display: inline-block; text-align: center; margin: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; width: 120px;';
-                                const value = element.querySelector('.value');
-                                const label = element.querySelector('.label');
-                                if (value) value.style.cssText = 'font-size: 24px; font-weight: bold; color: #4A90E2;';
-                                if (label) label.style.cssText = 'font-size: 12px; color: #666; margin-top: 5px;';
-                            } else {
-                                element.style.cssText = 'margin: 15px 0; padding: 15px; background-color: #f9f9f9; border-radius: 8px; border-left: 4px solid #4A90E2;';
-                            }
-                            break;
-                        case 'canvas':
-                            // Keep canvas as is for chart rendering
-                            break;
-                    }
-                }
-                
-                // Process children
-                for (let child of element.children) {
-                    applyImageStyles(child);
-                }
-            };
-            
-            applyImageStyles(reportClone);
-            tempContainer.appendChild(reportClone);
-            
-            // Add to document temporarily
-            document.body.appendChild(tempContainer);
-            
-            // Wait for any charts to render
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Generate image using html2canvas
-            const canvas = await html2canvas(tempContainer, {
-                width: 800,
-                height: tempContainer.scrollHeight,
+            // Create a simpler approach - capture the existing report container directly
+            const options = {
                 backgroundColor: '#ffffff',
-                scale: 2,
+                scale: 1.5, // Reduced scale for better compatibility
                 useCORS: true,
-                allowTaint: true
-            });
+                allowTaint: false,
+                foreignObjectRendering: false,
+                removeContainer: true,
+                logging: false,
+                width: reportContainer.offsetWidth || 800,
+                height: reportContainer.scrollHeight,
+                scrollX: 0,
+                scrollY: 0
+            };
+
+            // First, ensure all charts are fully rendered
+            const charts = reportContainer.querySelectorAll('canvas');
+            if (charts.length > 0) {
+                // Wait a bit longer for charts to be ready
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
+
+            // Generate the canvas
+            const canvas = await html2canvas(reportContainer, options);
             
-            // Remove temporary container
-            document.body.removeChild(tempContainer);
+            // Verify canvas has content
+            if (canvas.width === 0 || canvas.height === 0) {
+                throw new Error('Generated canvas is empty');
+            }
+
+            // Convert to blob first to ensure proper format
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/png', 1.0);
+            });
+
+            if (!blob) {
+                throw new Error('Failed to create image blob');
+            }
+
+            // Create download URL from blob
+            const url = URL.createObjectURL(blob);
             
             // Create download link
             const link = document.createElement('a');
             link.download = filename;
-            link.href = canvas.toDataURL('image/png');
+            link.href = url;
+            link.style.display = 'none';
             
             // Trigger download
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
+            
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 100);
             
             // Show success message
             if (isMobileDevice) {
-                alert('图片已生成！请检查您的下载文件夹或照片库。');
+                alert('图片已生成并开始下载！请检查您的下载文件夹。如果图片无法打开，请尝试使用其他图片查看器。');
+            } else {
+                alert('图片已保存！');
             }
             
         } catch (error) {
             console.error('Image generation failed:', error);
-            alert('图片生成失败，请重试。');
+            
+            // Fallback: try a simpler text-only approach
+            try {
+                await generateSimpleTextImage(birthDate, filename);
+                alert('已生成简化版本的图片报告。');
+            } catch (fallbackError) {
+                console.error('Fallback image generation also failed:', fallbackError);
+                alert('图片生成失败。建议使用"保存报告"功能获取PDF版本，或截屏保存报告内容。');
+            }
         } finally {
             // Reset button state
             saveImageBtn.disabled = false;
             saveImageBtn.textContent = '保存为图片';
         }
     });
+
+    // Fallback function for simple text-based image
+    async function generateSimpleTextImage(birthDate, filename) {
+        // Create a simple canvas with text content
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        canvas.width = 800;
+        canvas.height = 1200;
+        
+        // Set background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Set text styles
+        ctx.fillStyle = '#333333';
+        ctx.font = '24px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        
+        // Add title
+        ctx.fillStyle = '#4A90E2';
+        ctx.font = 'bold 32px Arial, sans-serif';
+        ctx.fillText('儿童命理与发展指南', canvas.width / 2, 60);
+        
+        ctx.fillStyle = '#666666';
+        ctx.font = '18px Arial, sans-serif';
+        ctx.fillText(`生日: ${birthDate}`, canvas.width / 2, 100);
+        
+        // Add a line
+        ctx.strokeStyle = '#4A90E2';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(100, 120);
+        ctx.lineTo(700, 120);
+        ctx.stroke();
+        
+        // Extract text content from report
+        const textContent = reportContainer.innerText || reportContainer.textContent || '';
+        const lines = textContent.split('\n').filter(line => line.trim().length > 0);
+        
+        // Add text content
+        ctx.fillStyle = '#333333';
+        ctx.font = '14px Arial, sans-serif';
+        ctx.textAlign = 'left';
+        
+        let y = 160;
+        const lineHeight = 20;
+        const maxWidth = 700;
+        const margin = 50;
+        
+        for (let i = 0; i < Math.min(lines.length, 50); i++) { // Limit to 50 lines
+            const line = lines[i].trim();
+            if (line.length > 0) {
+                // Word wrap
+                const words = line.split(' ');
+                let currentLine = '';
+                
+                for (const word of words) {
+                    const testLine = currentLine + word + ' ';
+                    const metrics = ctx.measureText(testLine);
+                    
+                    if (metrics.width > maxWidth && currentLine !== '') {
+                        ctx.fillText(currentLine, margin, y);
+                        currentLine = word + ' ';
+                        y += lineHeight;
+                    } else {
+                        currentLine = testLine;
+                    }
+                    
+                    if (y > canvas.height - 50) break; // Don't exceed canvas
+                }
+                
+                if (currentLine.trim() !== '') {
+                    ctx.fillText(currentLine, margin, y);
+                    y += lineHeight;
+                }
+                
+                if (y > canvas.height - 50) break;
+            }
+        }
+        
+        // Convert to blob and download
+        const blob = await new Promise(resolve => {
+            canvas.toBlob(resolve, 'image/png', 1.0);
+        });
+        
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = url;
+        link.style.display = 'none';
+        
+        document.body.appendChild(link);
+        link.click();
+        
+        setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 100);
+    }
 
     // Helper function to extract printable content
     function extractPrintableContent(element) {
