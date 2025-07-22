@@ -23,8 +23,13 @@ document.addEventListener('DOMContentLoaded', () => {
         errorMessage.style.display = 'none';
         loader.style.display = 'block';
         generateBtn.disabled = true;
+        generateBtn.textContent = '正在生成报告...';
 
         try {
+            // Create a timeout controller
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 200000); // 200 seconds timeout
+
             // Use relative URL for API calls - works both locally and on Vercel
             const response = await fetch('/api/generate-report', {
                 method: 'POST',
@@ -32,7 +37,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ birthday }),
+                signal: controller.signal
             });
+
+            clearTimeout(timeoutId);
 
             const data = await response.json();
 
@@ -48,13 +56,19 @@ document.addEventListener('DOMContentLoaded', () => {
             generateAgainBtn.style.display = 'block';
             saveReportBtn.style.display = 'block';
 
-
         } catch (error) {
-            showError(error.message);
+            if (error.name === 'AbortError') {
+                showError('生成报告超时，请稍后再试。AI生成需要一些时间，请耐心等待。');
+            } else if (error.message.includes('fetch')) {
+                showError('网络连接错误，请检查网络连接后重试。');
+            } else {
+                showError(error.message);
+            }
         } finally {
             // --- UI Cleanup ---
             loader.style.display = 'none';
             generateBtn.disabled = false;
+            generateBtn.textContent = '生成报告';
         }
     });
 
@@ -105,8 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function generateMobilePDF(birthDate) {
-        // Check if html2pdf is available
-        if (typeof html2pdf === 'undefined') {
+        // Check if required libraries are available
+        if (typeof window.jsPDF === 'undefined' || typeof html2canvas === 'undefined') {
             alert('PDF生成库未加载完成，请稍后再试');
             saveReportBtn.disabled = false;
             saveReportBtn.textContent = '保存报告';
@@ -115,144 +129,275 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
         
-        // Create a more mobile-friendly container
-        const tempContainer = document.createElement('div');
-        tempContainer.style.cssText = `
-            position: absolute;
+        // Create a mobile-optimized container for PDF generation
+        const pdfContainer = document.createElement('div');
+        pdfContainer.style.cssText = `
+            position: fixed;
             top: -9999px;
-            left: -9999px;
-            width: 210mm;
-            font-family: Arial, sans-serif;
+            left: 0;
+            width: 794px;
             background: white;
-            color: black;
-            padding: 20px;
+            padding: 40px;
+            font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+            color: #333;
+            line-height: 1.6;
             box-sizing: border-box;
         `;
         
-        // Generate simpler, more reliable HTML content
-        const mobileContent = extractSimplifiedContent(reportContainer, birthDate);
-        tempContainer.innerHTML = mobileContent;
+        // Generate PDF-optimized content
+        pdfContainer.innerHTML = generatePDFContent(reportContainer, birthDate);
+        document.body.appendChild(pdfContainer);
         
-        // Add to document
-        document.body.appendChild(tempContainer);
-        
-        // Wait a moment for DOM to settle
+        // Wait for DOM to be ready
         setTimeout(() => {
-            // Configure PDF options optimized for mobile
-            const opt = {
-                margin: [0.5, 0.5, 0.5, 0.5],
-                filename: filename,
-                image: { 
-                    type: 'jpeg', 
-                    quality: 0.98 
-                },
-                html2canvas: { 
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff',
-                    logging: false,
-                    width: 794, // A4 width in pixels at 96 DPI
-                    height: 1123, // A4 height in pixels at 96 DPI
-                    scrollX: 0,
-                    scrollY: 0
-                },
-                jsPDF: { 
-                    unit: 'in', 
-                    format: 'a4', 
-                    orientation: 'portrait',
-                    compress: true
+            // Configure html2canvas options for mobile
+            const canvasOptions = {
+                scale: 2,
+                useCORS: true,
+                allowTaint: false,
+                backgroundColor: '#ffffff',
+                width: 794,
+                height: null, // Auto height
+                scrollX: 0,
+                scrollY: 0,
+                logging: false,
+                onclone: function(clonedDoc) {
+                    // Ensure fonts are loaded in cloned document
+                    const style = clonedDoc.createElement('style');
+                    style.textContent = `
+                        * { font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif !important; }
+                        .pdf-chart { 
+                            width: 300px; 
+                            height: 300px; 
+                            margin: 20px auto; 
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            background: #f8f9ff;
+                            border: 2px solid #4A90E2;
+                            border-radius: 10px;
+                        }
+                    `;
+                    clonedDoc.head.appendChild(style);
                 }
             };
 
-            // Generate PDF with better error handling
-            html2pdf()
-                .set(opt)
-                .from(tempContainer)
-                .toPdf()
-                .get('pdf')
-                .then(function(pdf) {
-                    // Check if PDF has content
-                    if (pdf.internal.pages.length > 1) {
-                        return html2pdf().set(opt).from(tempContainer).save();
-                    } else {
-                        throw new Error('PDF内容为空');
+            html2canvas(pdfContainer, canvasOptions)
+                .then(canvas => {
+                    try {
+                        const { jsPDF } = window.jsPDF;
+                        const pdf = new jsPDF('p', 'mm', 'a4');
+                        
+                        // Calculate dimensions
+                        const imgWidth = 210; // A4 width in mm
+                        const pageHeight = 297; // A4 height in mm
+                        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                        let heightLeft = imgHeight;
+                        let position = 0;
+
+                        // Add first page
+                        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+                        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= pageHeight;
+
+                        // Add additional pages if needed
+                        while (heightLeft >= 0) {
+                            position = heightLeft - imgHeight;
+                            pdf.addPage();
+                            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                            heightLeft -= pageHeight;
+                        }
+
+                        // Save the PDF
+                        pdf.save(filename);
+                        
+                        // Clean up
+                        document.body.removeChild(pdfContainer);
+                        saveReportBtn.disabled = false;
+                        saveReportBtn.textContent = '保存报告';
+                        
+                        alert('PDF已成功生成并下载！请检查您的下载文件夹。');
+                        
+                    } catch (pdfError) {
+                        console.error('PDF generation error:', pdfError);
+                        document.body.removeChild(pdfContainer);
+                        saveReportBtn.disabled = false;
+                        saveReportBtn.textContent = '保存报告';
+                        
+                        // Try alternative method
+                        generateCanvasPDF(birthDate);
                     }
                 })
-                .then(() => {
-                    // Clean up
-                    if (document.body.contains(tempContainer)) {
-                        document.body.removeChild(tempContainer);
-                    }
+                .catch(canvasError => {
+                    console.error('Canvas generation error:', canvasError);
+                    document.body.removeChild(pdfContainer);
                     saveReportBtn.disabled = false;
                     saveReportBtn.textContent = '保存报告';
                     
-                    // Success message
-                    alert('PDF已成功生成并下载！请检查您的下载文件夹。');
-                })
-                .catch((error) => {
-                    console.error('Mobile PDF generation error:', error);
-                    
-                    // Clean up
-                    if (document.body.contains(tempContainer)) {
-                        document.body.removeChild(tempContainer);
-                    }
-                    saveReportBtn.disabled = false;
-                    saveReportBtn.textContent = '保存报告';
-                    
-                    // Fallback: try alternative method
-                    alert('正在尝试备用方法生成PDF...');
-                    generateFallbackMobilePDF(birthDate);
+                    // Try alternative method
+                    generateCanvasPDF(birthDate);
                 });
-        }, 100);
+        }, 200);
     }
 
-    // Fallback method for mobile PDF generation
-    function generateFallbackMobilePDF(birthDate) {
-        // Create a very simple text-based version
-        const textContent = extractTextOnlyContent(reportContainer, birthDate);
+    // Alternative canvas-based PDF generation
+    function generateCanvasPDF(birthDate) {
+        alert('正在尝试备用PDF生成方法...');
         
-        // Create blob and download
-        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `儿童命理报告_${birthDate.replace(/-/g, '')}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        // Create a simplified version using direct canvas drawing
+        const { jsPDF } = window.jsPDF;
+        const pdf = new jsPDF('p', 'mm', 'a4');
         
-        alert('已生成文本版本报告。如需PDF版本，请使用电脑访问。');
+        // PDF dimensions
+        const pageWidth = 210;
+        const pageHeight = 297;
+        const margin = 20;
+        const contentWidth = pageWidth - 2 * margin;
+        
+        let yPosition = margin;
+        
+        // Helper function to add text with word wrap
+        function addText(text, fontSize = 12, isBold = false) {
+            pdf.setFontSize(fontSize);
+            pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
+            
+            const lines = pdf.splitTextToSize(text, contentWidth);
+            
+            lines.forEach(line => {
+                if (yPosition > pageHeight - margin) {
+                    pdf.addPage();
+                    yPosition = margin;
+                }
+                pdf.text(line, margin, yPosition);
+                yPosition += fontSize * 0.5;
+            });
+            
+            yPosition += 5; // Extra spacing
+        }
+        
+        // Add title
+        addText('儿童命理与发展指南', 20, true);
+        addText(`生日：${birthDate}`, 14);
+        addText(`生成日期：${new Date().toLocaleDateString('zh-CN')}`, 12);
+        yPosition += 10;
+        
+        // Extract and add content from report
+        const reportSections = reportContainer.querySelectorAll('.report-section');
+        
+        reportSections.forEach(section => {
+            const h2 = section.querySelector('h2');
+            if (h2) {
+                addText(h2.textContent, 16, true);
+            }
+            
+            // Add core data if exists
+            const coreDataGrid = section.querySelector('.core-data-grid');
+            if (coreDataGrid) {
+                addText('【核心数据】', 14, true);
+                const dataCards = coreDataGrid.querySelectorAll('.data-card');
+                dataCards.forEach(card => {
+                    const value = card.querySelector('.value')?.textContent || '';
+                    const label = card.querySelector('.label')?.textContent || '';
+                    addText(`${label}: ${value}`, 12);
+                });
+                yPosition += 5;
+            }
+            
+            // Add other content
+            const paragraphs = section.querySelectorAll('p');
+            paragraphs.forEach(p => {
+                if (!p.closest('.core-data-grid')) {
+                    addText(p.textContent, 12);
+                }
+            });
+            
+            // Add content breakdown
+            const breakdowns = section.querySelectorAll('.content-breakdown');
+            breakdowns.forEach(breakdown => {
+                const title = breakdown.querySelector('.breakdown-title');
+                if (title) {
+                    addText(title.textContent, 14, true);
+                }
+                
+                const description = breakdown.querySelector('.breakdown-description');
+                if (description) {
+                    addText(description.textContent, 12);
+                }
+                
+                const subtitles = breakdown.querySelectorAll('.breakdown-subtitle');
+                subtitles.forEach(subtitle => {
+                    addText(`▶ ${subtitle.textContent}`, 12, true);
+                    const nextP = subtitle.nextElementSibling;
+                    if (nextP && nextP.tagName === 'P') {
+                        addText(nextP.textContent, 12);
+                    }
+                });
+            });
+            
+            // Add lists
+            const lists = section.querySelectorAll('ul');
+            lists.forEach(ul => {
+                const items = ul.querySelectorAll('li');
+                items.forEach(li => {
+                    addText(`• ${li.textContent}`, 12);
+                });
+            });
+            
+            yPosition += 10; // Section spacing
+        });
+        
+        // Add chart placeholder
+        if (yPosition > pageHeight - 60) {
+            pdf.addPage();
+            yPosition = margin;
+        }
+        
+        pdf.setFillColor(240, 248, 255);
+        pdf.rect(margin, yPosition, contentWidth, 40, 'F');
+        pdf.setTextColor(74, 144, 226);
+        addText('📊 性格蓝图雷达图', 16, true);
+        pdf.setTextColor(0, 0, 0);
+        addText('完整的交互式图表请在电脑端查看', 12);
+        
+        // Save PDF
+        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
+        pdf.save(filename);
+        
+        saveReportBtn.disabled = false;
+        saveReportBtn.textContent = '保存报告';
+        alert('PDF已生成！如需查看完整图表，请使用电脑访问。');
     }
 
-    // Extract simplified content for PDF
-    function extractSimplifiedContent(element, birthDate) {
+    // Generate PDF-optimized HTML content
+    function generatePDFContent(element, birthDate) {
         let html = `
-        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 100%;">
-            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #4A90E2; padding-bottom: 20px;">
-                <h1 style="color: #4A90E2; font-size: 28px; margin: 0 0 10px 0; font-weight: bold;">儿童命理与发展指南</h1>
-                <p style="color: #666; font-size: 16px; margin: 0;">生日：${birthDate}</p>
-                <p style="color: #999; font-size: 12px; margin-top: 10px;">生成日期：${new Date().toLocaleDateString('zh-CN')}</p>
-            </div>
+            <div style="font-family: 'Microsoft YaHei', sans-serif; color: #333; line-height: 1.6;">
+                <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #4A90E2;">
+                    <h1 style="color: #4A90E2; font-size: 32px; margin: 0 0 15px 0; font-weight: bold;">儿童命理与发展指南</h1>
+                    <p style="color: #666; font-size: 18px; margin: 0;">生日：${birthDate}</p>
+                    <p style="color: #999; font-size: 14px; margin-top: 10px;">生成日期：${new Date().toLocaleDateString('zh-CN')}</p>
+                </div>
         `;
         
         // Process each section
         for (let child of element.children) {
             if (child.classList.contains('report-section')) {
-                html += '<div style="margin-bottom: 25px; page-break-inside: avoid;">';
+                html += '<div style="margin-bottom: 30px; page-break-inside: avoid;">';
                 
                 for (let sectionChild of child.children) {
                     if (sectionChild.tagName === 'H2') {
-                        html += `<h2 style="color: #4A90E2; font-size: 20px; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin: 20px 0 15px 0; font-weight: bold;">${sectionChild.textContent}</h2>`;
+                        html += `<h2 style="color: #4A90E2; font-size: 24px; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin: 25px 0 20px 0; font-weight: bold;">${sectionChild.textContent}</h2>`;
                     } else if (sectionChild.tagName === 'H3') {
-                        html += `<h3 style="color: #666; font-size: 16px; margin: 15px 0 10px 0; font-weight: bold;">${sectionChild.textContent}</h3>`;
+                        html += `<h3 style="color: #666; font-size: 18px; margin: 20px 0 12px 0; font-weight: bold;">${sectionChild.textContent}</h3>`;
                     } else if (sectionChild.tagName === 'P') {
-                        html += `<p style="color: #555; margin-bottom: 10px; font-size: 14px; line-height: 1.5;">${sectionChild.textContent}</p>`;
+                        html += `<p style="color: #555; margin-bottom: 12px; font-size: 16px; line-height: 1.7;">${sectionChild.textContent}</p>`;
                     } else if (sectionChild.classList && sectionChild.classList.contains('core-data-grid')) {
-                        // Create a simple table for core data
-                        html += '<table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">';
-                        html += '<tr><td colspan="3" style="text-align: center; background-color: #f0f0f0; padding: 10px; font-weight: bold; border: 1px solid #ddd;">核心数据</td></tr>';
+                        // Create a clean table for core data
+                        html += `
+                            <div style="background: #f8f9ff; padding: 20px; border-radius: 10px; margin: 20px 0;">
+                                <h4 style="text-align: center; color: #4A90E2; margin-bottom: 15px; font-size: 18px;">核心数据</h4>
+                                <table style="width: 100%; border-collapse: collapse; font-size: 16px;">
+                        `;
                         
                         let row = '<tr>';
                         let count = 0;
@@ -260,9 +405,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             const value = card.querySelector('.value')?.textContent || '';
                             const label = card.querySelector('.label')?.textContent || '';
                             row += `
-                                <td style="text-align: center; padding: 12px; border: 1px solid #ddd;">
-                                    <div style="font-size: 18px; font-weight: bold; color: #4A90E2; margin-bottom: 5px;">${value}</div>
-                                    <div style="font-size: 12px; color: #666;">${label}</div>
+                                <td style="text-align: center; padding: 15px; border: 1px solid #ddd; background: white;">
+                                    <div style="font-size: 20px; font-weight: bold; color: #4A90E2; margin-bottom: 5px;">${value}</div>
+                                    <div style="font-size: 14px; color: #666;">${label}</div>
                                 </td>
                             `;
                             count++;
@@ -273,7 +418,6 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                         }
                         if (count % 3 !== 0) {
-                            // Fill remaining cells
                             while (count % 3 !== 0) {
                                 row += '<td style="border: 1px solid #ddd;"></td>';
                                 count++;
@@ -281,36 +425,36 @@ document.addEventListener('DOMContentLoaded', () => {
                             row += '</tr>';
                             html += row;
                         }
-                        html += '</table>';
+                        html += '</table></div>';
                     } else if (sectionChild.classList && sectionChild.classList.contains('content-breakdown')) {
-                        html += '<div style="background-color: #f9f9f9; padding: 15px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #4A90E2;">';
+                        html += '<div style="background-color: #f9f9f9; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 5px solid #4A90E2;">';
                         for (let breakdownChild of sectionChild.children) {
                             if (breakdownChild.classList && breakdownChild.classList.contains('breakdown-title')) {
-                                html += `<h4 style="color: #4A90E2; font-size: 16px; margin: 0 0 10px 0; font-weight: bold;">${breakdownChild.textContent}</h4>`;
+                                html += `<h4 style="color: #4A90E2; font-size: 18px; margin: 0 0 12px 0; font-weight: bold;">${breakdownChild.textContent}</h4>`;
                             } else if (breakdownChild.tagName === 'P') {
-                                html += `<p style="color: #555; margin-bottom: 10px; font-size: 14px; line-height: 1.5;">${breakdownChild.textContent}</p>`;
+                                html += `<p style="color: #555; margin-bottom: 12px; font-size: 16px; line-height: 1.7;">${breakdownChild.textContent}</p>`;
                             } else if (breakdownChild.tagName === 'H4') {
-                                html += `<h5 style="margin: 15px 0 8px 0; color: #666; font-size: 14px; font-weight: bold;">▶ ${breakdownChild.textContent}</h5>`;
+                                html += `<h5 style="margin: 18px 0 10px 0; color: #666; font-size: 16px; font-weight: bold;">▶ ${breakdownChild.textContent}</h5>`;
                             }
                         }
                         html += '</div>';
                     } else if (sectionChild.tagName === 'UL') {
-                        html += '<ul style="margin: 10px 0; padding-left: 20px;">';
+                        html += '<ul style="margin: 12px 0; padding-left: 25px; list-style-type: none;">';
                         for (let li of sectionChild.children) {
-                            // Process communication tips with colors
                             let liContent = li.innerHTML;
-                            liContent = liContent.replace(/<span class="comm-instead">(.*?)<\/span>/g, '<strong style="color: #e74c3c;">$1</strong>');
-                            liContent = liContent.replace(/<span class="comm-try">(.*?)<\/span>/g, '<strong style="color: #27ae60;">$1</strong>');
-                            liContent = liContent.replace(/<span class="comm-why">(.*?)<\/span>/g, '<strong style="color: #8e44ad;">$1</strong>');
-                            html += `<li style="margin-bottom: 8px; font-size: 14px; line-height: 1.5;">${liContent}</li>`;
+                            // Process communication tips with colors
+                            liContent = liContent.replace(/<span class="comm-instead">(.*?)<\/span>/g, '<strong style="color: #e74c3c; background: #ffeaea; padding: 2px 4px; border-radius: 3px;">$1</strong>');
+                            liContent = liContent.replace(/<span class="comm-try">(.*?)<\/span>/g, '<strong style="color: #27ae60; background: #eafaf1; padding: 2px 4px; border-radius: 3px;">$1</strong>');
+                            liContent = liContent.replace(/<span class="comm-why">(.*?)<\/span>/g, '<strong style="color: #8e44ad; background: #f4ecf7; padding: 2px 4px; border-radius: 3px;">$1</strong>');
+                            html += `<li style="margin-bottom: 10px; font-size: 16px; line-height: 1.7; padding: 8px; background: white; border-radius: 5px; border-left: 3px solid #4A90E2;">• ${liContent}</li>`;
                         }
                         html += '</ul>';
                     } else if (sectionChild.classList && sectionChild.classList.contains('chart-container')) {
                         html += `
-                            <div style="text-align: center; padding: 30px; background-color: #f0f8ff; border: 2px solid #4A90E2; border-radius: 10px; margin: 20px 0;">
-                                <h4 style="color: #4A90E2; margin: 0 0 10px 0; font-size: 18px; font-weight: bold;">📊 性格蓝图雷达图</h4>
-                                <p style="color: #666; font-size: 14px; margin: 0;">完整的交互式图表请在电脑端查看</p>
-                                <p style="color: #999; font-size: 12px; margin-top: 10px;">或访问网站在线版本获取完整体验</p>
+                            <div class="pdf-chart" style="text-align: center; padding: 40px; background: #f8f9ff; border: 3px solid #4A90E2; border-radius: 15px; margin: 25px 0;">
+                                <h4 style="color: #4A90E2; margin: 0 0 15px 0; font-size: 20px; font-weight: bold;">📊 性格蓝图雷达图</h4>
+                                <p style="color: #666; font-size: 16px; margin: 0;">完整的交互式图表请在电脑端查看</p>
+                                <p style="color: #999; font-size: 14px; margin-top: 10px;">或访问网站在线版本获取完整体验</p>
                             </div>
                         `;
                     }
@@ -322,42 +466,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         html += '</div>';
         return html;
-    }
-
-    // Extract text-only content as fallback
-    function extractTextOnlyContent(element, birthDate) {
-        let text = `儿童命理与发展指南\n生日：${birthDate}\n生成日期：${new Date().toLocaleDateString('zh-CN')}\n\n`;
-        text += '=' .repeat(50) + '\n\n';
-        
-        for (let child of element.children) {
-            if (child.classList.contains('report-section')) {
-                for (let sectionChild of child.children) {
-                    if (sectionChild.tagName === 'H2') {
-                        text += `\n【${sectionChild.textContent}】\n`;
-                        text += '-'.repeat(30) + '\n';
-                    } else if (sectionChild.tagName === 'H3') {
-                        text += `\n▶ ${sectionChild.textContent}\n`;
-                    } else if (sectionChild.tagName === 'P') {
-                        text += `${sectionChild.textContent}\n\n`;
-                    } else if (sectionChild.classList && sectionChild.classList.contains('core-data-grid')) {
-                        text += '\n【核心数据】\n';
-                        for (let card of sectionChild.children) {
-                            const value = card.querySelector('.value')?.textContent || '';
-                            const label = card.querySelector('.label')?.textContent || '';
-                            text += `${label}: ${value}\n`;
-                        }
-                        text += '\n';
-                    } else if (sectionChild.tagName === 'UL') {
-                        for (let li of sectionChild.children) {
-                            text += `• ${li.textContent}\n`;
-                        }
-                        text += '\n';
-                    }
-                }
-            }
-        }
-        
-        return text;
     }
 
     function generateDesktopPDF(birthDate) {
