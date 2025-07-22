@@ -110,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
         
         if (isMobile) {
-            // Use html2pdf for mobile devices
+            // Use jsPDF for mobile devices
             generateMobilePDF(birthDate);
         } else {
             // Use print window for desktop
