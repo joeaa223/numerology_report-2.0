@@ -105,62 +105,259 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function generateMobilePDF(birthDate) {
+        // Check if html2pdf is available
+        if (typeof html2pdf === 'undefined') {
+            alert('PDF生成库未加载完成，请稍后再试');
+            saveReportBtn.disabled = false;
+            saveReportBtn.textContent = '保存报告';
+            return;
+        }
+
         const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
         
-        // Create a simple container for mobile PDF
+        // Create a more mobile-friendly container
         const tempContainer = document.createElement('div');
-        tempContainer.innerHTML = `
-            <div style="font-family: Arial, sans-serif; padding: 15px; color: #333; line-height: 1.5;">
-                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #4A90E2; padding-bottom: 15px;">
-                    <h1 style="color: #4A90E2; font-size: 24px; margin-bottom: 8px;">儿童命理与发展指南</h1>
-                    <p style="color: #666; font-size: 14px; margin: 0;">生日：${birthDate}</p>
-                </div>
-                ${extractMobileContent(reportContainer)}
+        tempContainer.style.cssText = `
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            width: 210mm;
+            font-family: Arial, sans-serif;
+            background: white;
+            color: black;
+            padding: 20px;
+            box-sizing: border-box;
+        `;
+        
+        // Generate simpler, more reliable HTML content
+        const mobileContent = extractSimplifiedContent(reportContainer, birthDate);
+        tempContainer.innerHTML = mobileContent;
+        
+        // Add to document
+        document.body.appendChild(tempContainer);
+        
+        // Wait a moment for DOM to settle
+        setTimeout(() => {
+            // Configure PDF options optimized for mobile
+            const opt = {
+                margin: [0.5, 0.5, 0.5, 0.5],
+                filename: filename,
+                image: { 
+                    type: 'jpeg', 
+                    quality: 0.98 
+                },
+                html2canvas: { 
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false,
+                    width: 794, // A4 width in pixels at 96 DPI
+                    height: 1123, // A4 height in pixels at 96 DPI
+                    scrollX: 0,
+                    scrollY: 0
+                },
+                jsPDF: { 
+                    unit: 'in', 
+                    format: 'a4', 
+                    orientation: 'portrait',
+                    compress: true
+                }
+            };
+
+            // Generate PDF with better error handling
+            html2pdf()
+                .set(opt)
+                .from(tempContainer)
+                .toPdf()
+                .get('pdf')
+                .then(function(pdf) {
+                    // Check if PDF has content
+                    if (pdf.internal.pages.length > 1) {
+                        return html2pdf().set(opt).from(tempContainer).save();
+                    } else {
+                        throw new Error('PDF内容为空');
+                    }
+                })
+                .then(() => {
+                    // Clean up
+                    if (document.body.contains(tempContainer)) {
+                        document.body.removeChild(tempContainer);
+                    }
+                    saveReportBtn.disabled = false;
+                    saveReportBtn.textContent = '保存报告';
+                    
+                    // Success message
+                    alert('PDF已成功生成并下载！请检查您的下载文件夹。');
+                })
+                .catch((error) => {
+                    console.error('Mobile PDF generation error:', error);
+                    
+                    // Clean up
+                    if (document.body.contains(tempContainer)) {
+                        document.body.removeChild(tempContainer);
+                    }
+                    saveReportBtn.disabled = false;
+                    saveReportBtn.textContent = '保存报告';
+                    
+                    // Fallback: try alternative method
+                    alert('正在尝试备用方法生成PDF...');
+                    generateFallbackMobilePDF(birthDate);
+                });
+        }, 100);
+    }
+
+    // Fallback method for mobile PDF generation
+    function generateFallbackMobilePDF(birthDate) {
+        // Create a very simple text-based version
+        const textContent = extractTextOnlyContent(reportContainer, birthDate);
+        
+        // Create blob and download
+        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `儿童命理报告_${birthDate.replace(/-/g, '')}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert('已生成文本版本报告。如需PDF版本，请使用电脑访问。');
+    }
+
+    // Extract simplified content for PDF
+    function extractSimplifiedContent(element, birthDate) {
+        let html = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 100%;">
+            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #4A90E2; padding-bottom: 20px;">
+                <h1 style="color: #4A90E2; font-size: 28px; margin: 0 0 10px 0; font-weight: bold;">儿童命理与发展指南</h1>
+                <p style="color: #666; font-size: 16px; margin: 0;">生日：${birthDate}</p>
+                <p style="color: #999; font-size: 12px; margin-top: 10px;">生成日期：${new Date().toLocaleDateString('zh-CN')}</p>
             </div>
         `;
-
-        // Add to page temporarily (hidden)
-        document.body.appendChild(tempContainer);
-        tempContainer.style.position = 'absolute';
-        tempContainer.style.top = '-9999px';
-        tempContainer.style.width = '800px';
-
-        // Configure PDF options for mobile
-        const opt = {
-            margin: 0.4,
-            filename: filename,
-            image: { type: 'jpeg', quality: 0.8 },
-            html2canvas: { 
-                scale: 1.2,
-                useCORS: false,
-                allowTaint: false,
-                backgroundColor: '#ffffff',
-                width: 800
-            },
-            jsPDF: { 
-                unit: 'in', 
-                format: 'a4', 
-                orientation: 'portrait' 
+        
+        // Process each section
+        for (let child of element.children) {
+            if (child.classList.contains('report-section')) {
+                html += '<div style="margin-bottom: 25px; page-break-inside: avoid;">';
+                
+                for (let sectionChild of child.children) {
+                    if (sectionChild.tagName === 'H2') {
+                        html += `<h2 style="color: #4A90E2; font-size: 20px; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin: 20px 0 15px 0; font-weight: bold;">${sectionChild.textContent}</h2>`;
+                    } else if (sectionChild.tagName === 'H3') {
+                        html += `<h3 style="color: #666; font-size: 16px; margin: 15px 0 10px 0; font-weight: bold;">${sectionChild.textContent}</h3>`;
+                    } else if (sectionChild.tagName === 'P') {
+                        html += `<p style="color: #555; margin-bottom: 10px; font-size: 14px; line-height: 1.5;">${sectionChild.textContent}</p>`;
+                    } else if (sectionChild.classList && sectionChild.classList.contains('core-data-grid')) {
+                        // Create a simple table for core data
+                        html += '<table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">';
+                        html += '<tr><td colspan="3" style="text-align: center; background-color: #f0f0f0; padding: 10px; font-weight: bold; border: 1px solid #ddd;">核心数据</td></tr>';
+                        
+                        let row = '<tr>';
+                        let count = 0;
+                        for (let card of sectionChild.children) {
+                            const value = card.querySelector('.value')?.textContent || '';
+                            const label = card.querySelector('.label')?.textContent || '';
+                            row += `
+                                <td style="text-align: center; padding: 12px; border: 1px solid #ddd;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #4A90E2; margin-bottom: 5px;">${value}</div>
+                                    <div style="font-size: 12px; color: #666;">${label}</div>
+                                </td>
+                            `;
+                            count++;
+                            if (count % 3 === 0) {
+                                row += '</tr>';
+                                html += row;
+                                row = '<tr>';
+                            }
+                        }
+                        if (count % 3 !== 0) {
+                            // Fill remaining cells
+                            while (count % 3 !== 0) {
+                                row += '<td style="border: 1px solid #ddd;"></td>';
+                                count++;
+                            }
+                            row += '</tr>';
+                            html += row;
+                        }
+                        html += '</table>';
+                    } else if (sectionChild.classList && sectionChild.classList.contains('content-breakdown')) {
+                        html += '<div style="background-color: #f9f9f9; padding: 15px; margin: 15px 0; border-radius: 8px; border-left: 4px solid #4A90E2;">';
+                        for (let breakdownChild of sectionChild.children) {
+                            if (breakdownChild.classList && breakdownChild.classList.contains('breakdown-title')) {
+                                html += `<h4 style="color: #4A90E2; font-size: 16px; margin: 0 0 10px 0; font-weight: bold;">${breakdownChild.textContent}</h4>`;
+                            } else if (breakdownChild.tagName === 'P') {
+                                html += `<p style="color: #555; margin-bottom: 10px; font-size: 14px; line-height: 1.5;">${breakdownChild.textContent}</p>`;
+                            } else if (breakdownChild.tagName === 'H4') {
+                                html += `<h5 style="margin: 15px 0 8px 0; color: #666; font-size: 14px; font-weight: bold;">▶ ${breakdownChild.textContent}</h5>`;
+                            }
+                        }
+                        html += '</div>';
+                    } else if (sectionChild.tagName === 'UL') {
+                        html += '<ul style="margin: 10px 0; padding-left: 20px;">';
+                        for (let li of sectionChild.children) {
+                            // Process communication tips with colors
+                            let liContent = li.innerHTML;
+                            liContent = liContent.replace(/<span class="comm-instead">(.*?)<\/span>/g, '<strong style="color: #e74c3c;">$1</strong>');
+                            liContent = liContent.replace(/<span class="comm-try">(.*?)<\/span>/g, '<strong style="color: #27ae60;">$1</strong>');
+                            liContent = liContent.replace(/<span class="comm-why">(.*?)<\/span>/g, '<strong style="color: #8e44ad;">$1</strong>');
+                            html += `<li style="margin-bottom: 8px; font-size: 14px; line-height: 1.5;">${liContent}</li>`;
+                        }
+                        html += '</ul>';
+                    } else if (sectionChild.classList && sectionChild.classList.contains('chart-container')) {
+                        html += `
+                            <div style="text-align: center; padding: 30px; background-color: #f0f8ff; border: 2px solid #4A90E2; border-radius: 10px; margin: 20px 0;">
+                                <h4 style="color: #4A90E2; margin: 0 0 10px 0; font-size: 18px; font-weight: bold;">📊 性格蓝图雷达图</h4>
+                                <p style="color: #666; font-size: 14px; margin: 0;">完整的交互式图表请在电脑端查看</p>
+                                <p style="color: #999; font-size: 12px; margin-top: 10px;">或访问网站在线版本获取完整体验</p>
+                            </div>
+                        `;
+                    }
+                }
+                
+                html += '</div>';
             }
-        };
+        }
+        
+        html += '</div>';
+        return html;
+    }
 
-        // Generate and download PDF
-        html2pdf().set(opt).from(tempContainer).save().then(() => {
-            document.body.removeChild(tempContainer);
-            saveReportBtn.disabled = false;
-            saveReportBtn.textContent = '保存报告';
-            
-            // Show mobile-specific success message
-            alert('PDF已生成并下载到您的设备！请在下载文件夹中查看。');
-        }).catch((error) => {
-            console.error('Mobile PDF generation failed:', error);
-            if (document.body.contains(tempContainer)) {
-                document.body.removeChild(tempContainer);
+    // Extract text-only content as fallback
+    function extractTextOnlyContent(element, birthDate) {
+        let text = `儿童命理与发展指南\n生日：${birthDate}\n生成日期：${new Date().toLocaleDateString('zh-CN')}\n\n`;
+        text += '=' .repeat(50) + '\n\n';
+        
+        for (let child of element.children) {
+            if (child.classList.contains('report-section')) {
+                for (let sectionChild of child.children) {
+                    if (sectionChild.tagName === 'H2') {
+                        text += `\n【${sectionChild.textContent}】\n`;
+                        text += '-'.repeat(30) + '\n';
+                    } else if (sectionChild.tagName === 'H3') {
+                        text += `\n▶ ${sectionChild.textContent}\n`;
+                    } else if (sectionChild.tagName === 'P') {
+                        text += `${sectionChild.textContent}\n\n`;
+                    } else if (sectionChild.classList && sectionChild.classList.contains('core-data-grid')) {
+                        text += '\n【核心数据】\n';
+                        for (let card of sectionChild.children) {
+                            const value = card.querySelector('.value')?.textContent || '';
+                            const label = card.querySelector('.label')?.textContent || '';
+                            text += `${label}: ${value}\n`;
+                        }
+                        text += '\n';
+                    } else if (sectionChild.tagName === 'UL') {
+                        for (let li of sectionChild.children) {
+                            text += `• ${li.textContent}\n`;
+                        }
+                        text += '\n';
+                    }
+                }
             }
-            saveReportBtn.disabled = false;
-            saveReportBtn.textContent = '保存报告';
-            alert('PDF生成失败，请重试。如果问题持续，请使用电脑访问。');
-        });
+        }
+        
+        return text;
     }
 
     function generateDesktopPDF(birthDate) {
@@ -434,74 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return html;
     }
 
-    // Helper function to extract content for mobile PDF (simpler format)
-    function extractMobileContent(element) {
-        let html = '';
-        
-        for (let child of element.children) {
-            if (child.classList.contains('report-section')) {
-                html += '<div style="margin-bottom: 25px; padding: 15px; border: 1px solid #eee; border-radius: 8px;">';
-                
-                for (let sectionChild of child.children) {
-                    if (sectionChild.tagName === 'H2') {
-                        html += `<h2 style="color: #4A90E2; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 12px;">${sectionChild.textContent}</h2>`;
-                    } else if (sectionChild.tagName === 'H3') {
-                        html += `<h3 style="color: #666; font-size: 16px; margin-top: 15px; margin-bottom: 8px;">${sectionChild.textContent}</h3>`;
-                    } else if (sectionChild.tagName === 'P') {
-                        html += `<p style="color: #555; margin-bottom: 8px; font-size: 13px;">${sectionChild.textContent}</p>`;
-                    } else if (sectionChild.classList && sectionChild.classList.contains('core-data-grid')) {
-                        // Convert to simple table for mobile
-                        html += '<table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px;">';
-                        let count = 0;
-                        for (let card of sectionChild.children) {
-                            if (count % 2 === 0) html += '<tr>';
-                            const value = card.querySelector('.value')?.textContent || '';
-                            const label = card.querySelector('.label')?.textContent || '';
-                            html += `
-                                <td style="text-align: center; padding: 10px; border: 1px solid #ddd;">
-                                    <div style="font-size: 18px; font-weight: bold; color: #4A90E2;">${value}</div>
-                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">${label}</div>
-                                </td>
-                            `;
-                            count++;
-                            if (count % 2 === 0) html += '</tr>';
-                        }
-                        if (count % 2 !== 0) html += '</tr>';
-                        html += '</table>';
-                    } else if (sectionChild.classList && sectionChild.classList.contains('content-breakdown')) {
-                        html += '<div style="background-color: #f9f9f9; padding: 12px; margin: 12px 0; border-radius: 6px;">';
-                        for (let breakdownChild of sectionChild.children) {
-                            if (breakdownChild.classList && breakdownChild.classList.contains('breakdown-title')) {
-                                html += `<h4 style="color: #4A90E2; font-size: 14px; margin-bottom: 8px;">${breakdownChild.textContent}</h4>`;
-                            } else if (breakdownChild.tagName === 'P') {
-                                html += `<p style="color: #555; margin-bottom: 8px; font-size: 12px;">${breakdownChild.textContent}</p>`;
-                            } else if (breakdownChild.tagName === 'H4') {
-                                html += `<h5 style="margin-top: 12px; color: #666; font-size: 12px;">▶ ${breakdownChild.textContent}</h5>`;
-                            }
-                        }
-                        html += '</div>';
-                    } else if (sectionChild.tagName === 'UL') {
-                        html += '<ul style="margin: 8px 0; padding-left: 15px;">';
-                        for (let li of sectionChild.children) {
-                            html += `<li style="margin-bottom: 6px; font-size: 12px;">${li.innerHTML}</li>`;
-                        }
-                        html += '</ul>';
-                    } else if (sectionChild.classList && sectionChild.classList.contains('chart-container')) {
-                        html += `
-                            <div style="text-align: center; padding: 20px; background-color: #f0f0f0; border-radius: 8px; margin: 15px 0;">
-                                <h4 style="color: #4A90E2; margin-bottom: 8px; font-size: 14px;">性格蓝图雷达图</h4>
-                                <p style="color: #666; font-size: 11px;">完整的交互式图表请在电脑上查看</p>
-                            </div>
-                        `;
-                    }
-                }
-                
-                html += '</div>';
-            }
-        }
-        
-        return html;
-    }
+
 
 
     function showError(message) {
