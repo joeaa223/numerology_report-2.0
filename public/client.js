@@ -29,6 +29,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Set default date to a reasonable example
     birthdayInput.value = '2018-05-15';
+    
+    // Set date range: from 90 years ago to today
+    const today = new Date();
+    const maxDate = today.toISOString().split('T')[0]; // Today's date in YYYY-MM-DD format
+    
+    const minDate = new Date();
+    minDate.setFullYear(today.getFullYear() - 90);
+    const minDateStr = minDate.toISOString().split('T')[0]; // 90 years ago in YYYY-MM-DD format
+    
+    birthdayInput.setAttribute('min', minDateStr);
+    birthdayInput.setAttribute('max', maxDate);
 
     generateBtn.addEventListener('click', async () => {
         const birthday = birthdayInput.value;
