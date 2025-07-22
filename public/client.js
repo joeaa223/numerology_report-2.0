@@ -305,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Get the birth date for filename
         const birthDate = birthdayInput.value;
-        const baseFilename = `儿童命理报告_${birthDate.replace(/-/g, '')}`;
+        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.png`;
         
         // Check if content exists
         if (reportContainer.innerHTML.length < 100) {
@@ -316,89 +316,78 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // Find all chapter sections
-            const chapters = [
-                { 
-                    element: reportContainer.querySelector('[data-chapter="chapter1"]') || reportContainer.querySelector('h2:nth-of-type(1)'),
-                    name: '第一章_内在团队',
-                    selector: '[data-chapter="chapter1"]'
-                },
-                { 
-                    element: reportContainer.querySelector('[data-chapter="chapter2"]') || reportContainer.querySelector('h2:nth-of-type(2)'),
-                    name: '第二章_内在世界',
-                    selector: '[data-chapter="chapter2"]'
-                },
-                { 
-                    element: reportContainer.querySelector('[data-chapter="chapter3"]') || reportContainer.querySelector('h2:nth-of-type(3)'),
-                    name: '第三章_父母攻略',
-                    selector: '[data-chapter="chapter3"]'
-                },
-                { 
-                    element: reportContainer.querySelector('[data-chapter="chapter4"]') || reportContainer.querySelector('h2:nth-of-type(4)'),
-                    name: '第四章_点燃激情_结语',
-                    selector: '[data-chapter="chapter4"]'
-                }
-            ];
+            // Create a simpler approach - capture the existing report container directly
+            const options = {
+                backgroundColor: '#ffffff',
+                scale: 1.5, // Reduced scale for better compatibility
+                useCORS: true,
+                allowTaint: false,
+                foreignObjectRendering: false,
+                removeContainer: true,
+                logging: false,
+                width: reportContainer.offsetWidth || 800,
+                height: reportContainer.scrollHeight,
+                scrollX: 0,
+                scrollY: 0
+            };
 
-            // If we can't find chapters by data attributes, try to find by content structure
-            if (!chapters[0].element) {
-                const allH2s = reportContainer.querySelectorAll('h2');
-                if (allH2s.length >= 4) {
-                    chapters[0].element = allH2s[0];
-                    chapters[1].element = allH2s[1];
-                    chapters[2].element = allH2s[2];
-                    chapters[3].element = allH2s[3];
-                }
+            // First, ensure all charts are fully rendered
+            const charts = reportContainer.querySelectorAll('canvas');
+            if (charts.length > 0) {
+                // Wait a bit longer for charts to be ready
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
 
-            const downloadPromises = [];
-            let successCount = 0;
-
-            // Generate each chapter image
-            for (let i = 0; i < chapters.length; i++) {
-                const chapter = chapters[i];
-                
-                try {
-                    const chapterContent = await extractChapterContent(chapter, i, chapters.length);
-                    if (chapterContent) {
-                        const filename = `${baseFilename}_${chapter.name}.png`;
-                        const downloadPromise = generateChapterImage(chapterContent, filename, birthDate, i + 1);
-                        downloadPromises.push(downloadPromise);
-                    }
-                } catch (error) {
-                    console.error(`Failed to process chapter ${i + 1}:`, error);
-                }
-            }
-
-            // Wait for all images to be generated and downloaded
-            const results = await Promise.allSettled(downloadPromises);
+            // Generate the canvas
+            const canvas = await html2canvas(reportContainer, options);
             
-            // Count successful downloads
-            results.forEach((result, index) => {
-                if (result.status === 'fulfilled') {
-                    successCount++;
-                } else {
-                    console.error(`Chapter ${index + 1} failed:`, result.reason);
-                }
+            // Verify canvas has content
+            if (canvas.width === 0 || canvas.height === 0) {
+                throw new Error('Generated canvas is empty');
+            }
+
+            // Convert to blob first to ensure proper format
+            const blob = await new Promise(resolve => {
+                canvas.toBlob(resolve, 'image/png', 1.0);
             });
 
-            // Show result message
-            if (successCount === chapters.length) {
-                alert(`成功生成 ${successCount} 张图片！请检查您的下载文件夹。`);
-            } else if (successCount > 0) {
-                alert(`成功生成 ${successCount}/${chapters.length} 张图片。部分章节可能内容不足或生成失败。`);
+            if (!blob) {
+                throw new Error('Failed to create image blob');
+            }
+
+            // Create download URL from blob
+            const url = URL.createObjectURL(blob);
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = url;
+            link.style.display = 'none';
+            
+            // Trigger download
+            document.body.appendChild(link);
+            link.click();
+            
+            // Clean up
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 100);
+            
+            // Show success message
+            if (isMobileDevice) {
+                alert('图片已生成并开始下载！请检查您的下载文件夹。如果图片无法打开，请尝试使用其他图片查看器。');
             } else {
-                throw new Error('所有章节图片生成失败');
+                alert('图片已保存！');
             }
             
         } catch (error) {
             console.error('Image generation failed:', error);
             
-            // Fallback: generate single image
+            // Fallback: try a simpler text-only approach
             try {
-                const filename = `${baseFilename}_完整报告.png`;
-                await generateSingleImage(filename, birthDate);
-                alert('章节分离失败，已生成完整报告图片。');
+                await generateSimpleTextImage(birthDate, filename);
+                alert('已生成简化版本的图片报告。');
             } catch (fallbackError) {
                 console.error('Fallback image generation also failed:', fallbackError);
                 alert('图片生成失败。建议使用"保存报告"功能获取PDF版本，或截屏保存报告内容。');
@@ -410,202 +399,92 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Function to extract content for a specific chapter
-    async function extractChapterContent(chapter, chapterIndex, totalChapters) {
-        if (!chapter.element) {
-            return null;
-        }
-
-        // Create a container for this chapter
-        const container = document.createElement('div');
-        container.style.cssText = `
-            background-color: white;
-            padding: 30px;
-            font-family: 'Nunito', sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 800px;
-        `;
-
-        // Add header with chapter info
-        const header = document.createElement('div');
-        header.innerHTML = `
-            <h1 style="color: #4A90E2; text-align: center; margin-bottom: 10px; font-size: 28px;">儿童命理与发展指南</h1>
-            <p style="text-align: center; margin-bottom: 20px; font-size: 16px; color: #666;">第 ${chapterIndex + 1} 部分 / 共 ${totalChapters} 部分</p>
-            <hr style="border: 1px solid #4A90E2; margin-bottom: 20px;">
-        `;
-        container.appendChild(header);
-
-        // Find the content for this chapter
-        let currentElement = chapter.element;
-        let nextChapterElement = null;
-
-        // Find the next chapter to know where to stop
-        if (chapterIndex < totalChapters - 1) {
-            const nextH2s = reportContainer.querySelectorAll('h2');
-            if (nextH2s[chapterIndex + 1]) {
-                nextChapterElement = nextH2s[chapterIndex + 1];
-            }
-        }
-
-        // Collect all elements between current chapter and next chapter
-        const chapterContent = document.createElement('div');
-        let collecting = false;
-
-        for (let element of reportContainer.children) {
-            if (element === currentElement) {
-                collecting = true;
-            }
-            
-            if (collecting) {
-                if (element === nextChapterElement) {
-                    break;
-                }
-                
-                const clonedElement = element.cloneNode(true);
-                chapterContent.appendChild(clonedElement);
-            }
-        }
-
-        // Special handling for the last chapter (include conclusion)
-        if (chapterIndex === totalChapters - 1) {
-            const conclusionElements = reportContainer.querySelectorAll('h2, h3, p, div');
-            let foundLastChapter = false;
-            
-            for (let element of conclusionElements) {
-                if (element === currentElement) {
-                    foundLastChapter = true;
-                    continue;
-                }
-                
-                if (foundLastChapter && element.textContent.includes('结语')) {
-                    const clonedElement = element.cloneNode(true);
-                    chapterContent.appendChild(clonedElement);
-                    
-                    // Also include following paragraphs
-                    let nextSibling = element.nextElementSibling;
-                    while (nextSibling && nextSibling.tagName !== 'H2') {
-                        const clonedSibling = nextSibling.cloneNode(true);
-                        chapterContent.appendChild(clonedSibling);
-                        nextSibling = nextSibling.nextElementSibling;
-                    }
-                    break;
-                }
-            }
-        }
-
-        container.appendChild(chapterContent);
-        return container;
-    }
-
-    // Function to generate image for a specific chapter
-    async function generateChapterImage(chapterContent, filename, birthDate, chapterNum) {
-        // Add to document temporarily for rendering
-        chapterContent.style.position = 'absolute';
-        chapterContent.style.top = '-9999px';
-        chapterContent.style.left = '-9999px';
-        document.body.appendChild(chapterContent);
-
-        try {
-            // Wait for content to render
-            await new Promise(resolve => setTimeout(resolve, 1000));
-
-            // Check for charts in this chapter and wait longer if needed
-            const charts = chapterContent.querySelectorAll('canvas');
-            if (charts.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-
-            const options = {
-                backgroundColor: '#ffffff',
-                scale: 1.5,
-                useCORS: true,
-                allowTaint: false,
-                foreignObjectRendering: false,
-                removeContainer: true,
-                logging: false,
-                width: chapterContent.offsetWidth || 800,
-                height: chapterContent.scrollHeight,
-                scrollX: 0,
-                scrollY: 0
-            };
-
-            // Generate the canvas
-            const canvas = await html2canvas(chapterContent, options);
-            
-            // Verify canvas has content
-            if (canvas.width === 0 || canvas.height === 0) {
-                throw new Error(`Chapter ${chapterNum} canvas is empty`);
-            }
-
-            // Convert to blob
-            const blob = await new Promise(resolve => {
-                canvas.toBlob(resolve, 'image/png', 1.0);
-            });
-
-            if (!blob) {
-                throw new Error(`Failed to create blob for chapter ${chapterNum}`);
-            }
-
-            // Create download URL and trigger download
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.download = filename;
-            link.href = url;
-            link.style.display = 'none';
-            
-            document.body.appendChild(link);
-            link.click();
-            
-            // Clean up with delay to ensure download starts
-            setTimeout(() => {
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }, 1000);
-
-            return { success: true, chapter: chapterNum };
-
-        } finally {
-            // Remove temporary element
-            document.body.removeChild(chapterContent);
-        }
-    }
-
-    // Fallback function for single image (simplified version of original)
-    async function generateSingleImage(filename, birthDate) {
-        const options = {
-            backgroundColor: '#ffffff',
-            scale: 1.2,
-            useCORS: true,
-            allowTaint: false,
-            foreignObjectRendering: false,
-            removeContainer: true,
-            logging: false,
-            width: reportContainer.offsetWidth || 800,
-            height: reportContainer.scrollHeight,
-            scrollX: 0,
-            scrollY: 0
-        };
-
-        const charts = reportContainer.querySelectorAll('canvas');
-        if (charts.length > 0) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-
-        const canvas = await html2canvas(reportContainer, options);
+    // Fallback function for simple text-based image
+    async function generateSimpleTextImage(birthDate, filename) {
+        // Create a simple canvas with text content
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
         
-        if (canvas.width === 0 || canvas.height === 0) {
-            throw new Error('Generated canvas is empty');
+        // Set canvas size
+        canvas.width = 800;
+        canvas.height = 1200;
+        
+        // Set background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Set text styles
+        ctx.fillStyle = '#333333';
+        ctx.font = '24px Arial, sans-serif';
+        ctx.textAlign = 'center';
+        
+        // Add title
+        ctx.fillStyle = '#4A90E2';
+        ctx.font = 'bold 32px Arial, sans-serif';
+        ctx.fillText('儿童命理与发展指南', canvas.width / 2, 60);
+        
+        ctx.fillStyle = '#666666';
+        ctx.font = '18px Arial, sans-serif';
+        ctx.fillText(`生日: ${birthDate}`, canvas.width / 2, 100);
+        
+        // Add a line
+        ctx.strokeStyle = '#4A90E2';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(100, 120);
+        ctx.lineTo(700, 120);
+        ctx.stroke();
+        
+        // Extract text content from report
+        const textContent = reportContainer.innerText || reportContainer.textContent || '';
+        const lines = textContent.split('\n').filter(line => line.trim().length > 0);
+        
+        // Add text content
+        ctx.fillStyle = '#333333';
+        ctx.font = '14px Arial, sans-serif';
+        ctx.textAlign = 'left';
+        
+        let y = 160;
+        const lineHeight = 20;
+        const maxWidth = 700;
+        const margin = 50;
+        
+        for (let i = 0; i < Math.min(lines.length, 50); i++) { // Limit to 50 lines
+            const line = lines[i].trim();
+            if (line.length > 0) {
+                // Word wrap
+                const words = line.split(' ');
+                let currentLine = '';
+                
+                for (const word of words) {
+                    const testLine = currentLine + word + ' ';
+                    const metrics = ctx.measureText(testLine);
+                    
+                    if (metrics.width > maxWidth && currentLine !== '') {
+                        ctx.fillText(currentLine, margin, y);
+                        currentLine = word + ' ';
+                        y += lineHeight;
+                    } else {
+                        currentLine = testLine;
+                    }
+                    
+                    if (y > canvas.height - 50) break; // Don't exceed canvas
+                }
+                
+                if (currentLine.trim() !== '') {
+                    ctx.fillText(currentLine, margin, y);
+                    y += lineHeight;
+                }
+                
+                if (y > canvas.height - 50) break;
+            }
         }
-
+        
+        // Convert to blob and download
         const blob = await new Promise(resolve => {
             canvas.toBlob(resolve, 'image/png', 1.0);
         });
-
-        if (!blob) {
-            throw new Error('Failed to create image blob');
-        }
-
+        
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.download = filename;
@@ -712,41 +591,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const { report, calculations } = data;
-        
-        let html = '';
-        
-        // Add core data section
-        html += renderCoreData(calculations);
-        
-        // Chapter 1: Inner Team
-        html += `<div data-chapter="chapter1">`;
-        html += renderInnerTeam(report.chapter1_innerTeam);
-        html += `</div>`;
-        
-        // Chapter 2: Inner World  
-        html += `<div data-chapter="chapter2">`;
-        html += renderInnerWorld(report.chapter2_innerWorld);
-        html += `</div>`;
-        
-        // Chapter 3: Parents Playbook
-        html += `<div data-chapter="chapter3">`;
-        html += renderParentsPlaybook(report.chapter3_parentsPlaybook);
-        html += `</div>`;
-        
-        // Chapter 4: Igniting Passions + Conclusion
-        html += `<div data-chapter="chapter4">`;
-        html += renderIgnitingPassions(report.chapter4_ignitingPassions);
-        html += renderConclusion(report.conclusion);
-        html += `</div>`;
-        
-        reportContainer.innerHTML = html;
-        
-        // Render any charts after DOM is updated
-        const chartCanvas = reportContainer.querySelector('canvas[data-chart-data]');
-        if (chartCanvas) {
-            const chartData = JSON.parse(chartCanvas.getAttribute('data-chart-data'));
-            renderPolygonChart(chartCanvas, chartData);
-        }
+
+        reportContainer.innerHTML = `
+            ${renderCoreData(calculations)}
+            ${renderInnerTeam(report.chapter1_innerTeam)}
+            ${renderInnerWorld(report.chapter2_innerWorld)}
+            ${renderParentsPlaybook(report.chapter3_parentsPlaybook)}
+            ${renderIgnitingPassions(report.chapter4_ignitingPassions)}
+            ${renderConclusion(report.conclusion)}
+        `;
     }
 
     function createBreakdownBlock(title, description, subsections = []) {
