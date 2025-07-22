@@ -591,7 +591,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return createSection('第四章：激发热情与潜力 - 兴趣与未来方向', `
             <h3>🎨 推荐爱好领域</h3>
             ${recommendedHobbies.map(tier => `
-                <h4>${tier.tier}: ${tier.theme}</h4>
+                <h4>${
+                    (tier.tier.includes('：') || tier.tier.includes(':')) 
+                      ? tier.tier + ' ' + tier.theme 
+                      : tier.tier + ': ' + tier.theme
+                }</h4>
+                <div class="hobby-divider"></div>
                 <ul>${tier.items.map(item => `<li>${item}</li>`).join('')}</ul>
             `).join('')}
             

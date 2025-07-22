@@ -404,3 +404,12 @@ footer {
     margin-top: 8px;
     margin-bottom: 0;
 }
+
+.hobby-divider {
+    height: 1.5px;
+    background: #ececf6;
+    border-radius: 1px;
+    margin: 8px 0 12px 0;
+    width: 100%;
+    border: none;
+  }
