@@ -23,13 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
         errorMessage.style.display = 'none';
         loader.style.display = 'block';
         generateBtn.disabled = true;
-        generateBtn.textContent = '正在生成报告...';
 
         try {
-            // Create a timeout controller
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 200000); // 200 seconds timeout
-
             // Use relative URL for API calls - works both locally and on Vercel
             const response = await fetch('/api/generate-report', {
                 method: 'POST',
@@ -37,10 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ birthday }),
-                signal: controller.signal
             });
-
-            clearTimeout(timeoutId);
 
             const data = await response.json();
 
@@ -56,19 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
             generateAgainBtn.style.display = 'block';
             saveReportBtn.style.display = 'block';
 
+
         } catch (error) {
-            if (error.name === 'AbortError') {
-                showError('生成报告超时，请稍后再试。AI生成需要一些时间，请耐心等待。');
-            } else if (error.message.includes('fetch')) {
-                showError('网络连接错误，请检查网络连接后重试。');
-            } else {
-                showError(error.message);
-            }
+            showError(error.message);
         } finally {
             // --- UI Cleanup ---
             loader.style.display = 'none';
             generateBtn.disabled = false;
-            generateBtn.textContent = '生成报告';
         }
     });
 
@@ -106,405 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Detect if user is on mobile
-        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-        
-        if (isMobile) {
-            // Use jsPDF for mobile devices
-            generateMobilePDF(birthDate);
-        } else {
-            // Use print window for desktop
-            generateDesktopPDF(birthDate);
-        }
-    });
-
-    function generateMobilePDF(birthDate) {
-        // Check if jsPDF is available
-        if (typeof window.jsPDF === 'undefined') {
-            alert('PDF生成库未加载完成，请稍后再试');
-            saveReportBtn.disabled = false;
-            saveReportBtn.textContent = '保存报告';
-            return;
-        }
-
-        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
-        
-        try {
-            // Extract all content from the report
-            const reportData = extractReportData();
-            
-            // Create PDF using jsPDF
-            const { jsPDF } = window.jsPDF;
-            const doc = new jsPDF({
-                orientation: 'portrait',
-                unit: 'mm',
-                format: 'a4'
-            });
-
-            // Set up fonts and colors
-            doc.setFont('helvetica');
-            
-            // Generate PDF content
-            generatePDFContent(doc, reportData, birthDate);
-            
-            // Save the PDF
-            doc.save(filename);
-            
-            // Success
-            saveReportBtn.disabled = false;
-            saveReportBtn.textContent = '保存报告';
-            alert('PDF已成功生成并下载！请检查您的下载文件夹。');
-            
-        } catch (error) {
-            console.error('Mobile PDF generation error:', error);
-            saveReportBtn.disabled = false;
-            saveReportBtn.textContent = '保存报告';
-            
-            // Fallback to text version
-            alert('PDF生成失败，正在生成文本版本...');
-            generateFallbackMobilePDF(birthDate);
-        }
-    }
-
-    // Extract report data from DOM
-    function extractReportData() {
-        const data = {
-            coreData: [],
-            sections: []
-        };
-
-        // Extract core data
-        const coreDataGrid = reportContainer.querySelector('.core-data-grid');
-        if (coreDataGrid) {
-            const cards = coreDataGrid.querySelectorAll('.data-card');
-            cards.forEach(card => {
-                const value = card.querySelector('.value')?.textContent || '';
-                const label = card.querySelector('.label')?.textContent || '';
-                data.coreData.push({ label, value });
-            });
-        }
-
-        // Extract sections
-        const sections = reportContainer.querySelectorAll('.report-section');
-        sections.forEach(section => {
-            const sectionData = {
-                title: '',
-                content: []
-            };
-
-            const h2 = section.querySelector('h2');
-            if (h2) {
-                sectionData.title = h2.textContent;
-            }
-
-            // Extract content blocks
-            const blocks = section.children;
-            for (let block of blocks) {
-                if (block.tagName === 'H2') continue; // Skip title
-
-                if (block.tagName === 'H3') {
-                    sectionData.content.push({
-                        type: 'subtitle',
-                        text: block.textContent
-                    });
-                } else if (block.tagName === 'P') {
-                    sectionData.content.push({
-                        type: 'paragraph',
-                        text: block.textContent
-                    });
-                } else if (block.classList && block.classList.contains('content-breakdown')) {
-                    const breakdownData = {
-                        type: 'breakdown',
-                        title: '',
-                        items: []
-                    };
-
-                    const title = block.querySelector('.breakdown-title');
-                    if (title) {
-                        breakdownData.title = title.textContent;
-                    }
-
-                    const paragraphs = block.querySelectorAll('p');
-                    paragraphs.forEach(p => {
-                        breakdownData.items.push(p.textContent);
-                    });
-
-                    const subtitles = block.querySelectorAll('h4, h5');
-                    subtitles.forEach(sub => {
-                        breakdownData.items.push(`• ${sub.textContent}`);
-                    });
-
-                    sectionData.content.push(breakdownData);
-                } else if (block.tagName === 'UL') {
-                    const listData = {
-                        type: 'list',
-                        items: []
-                    };
-
-                    const items = block.querySelectorAll('li');
-                    items.forEach(li => {
-                        listData.items.push(li.textContent);
-                    });
-
-                    sectionData.content.push(listData);
-                } else if (block.classList && block.classList.contains('chart-container')) {
-                    sectionData.content.push({
-                        type: 'chart',
-                        text: '性格蓝图雷达图 - 请访问网站查看完整交互式图表'
-                    });
-                }
-            }
-
-            data.sections.push(sectionData);
-        });
-
-        return data;
-    }
-
-    // Generate PDF content using jsPDF
-    function generatePDFContent(doc, data, birthDate) {
-        let yPosition = 20;
-        const pageHeight = 297; // A4 height in mm
-        const margin = 20;
-        const lineHeight = 7;
-        const maxWidth = 170; // Max text width
-
-        // Helper function to add new page if needed
-        function checkPageBreak(neededHeight) {
-            if (yPosition + neededHeight > pageHeight - margin) {
-                doc.addPage();
-                yPosition = 20;
-            }
-        }
-
-        // Helper function to wrap text
-        function wrapText(text, maxWidth) {
-            return doc.splitTextToSize(text, maxWidth);
-        }
-
-        // Title
-        doc.setFontSize(20);
-        doc.setTextColor(74, 144, 226); // Blue color
-        doc.text('儿童命理与发展指南', 105, yPosition, { align: 'center' });
-        yPosition += 15;
-
-        // Birth date
-        doc.setFontSize(12);
-        doc.setTextColor(102, 102, 102); // Gray color
-        doc.text(`生日：${birthDate}`, 105, yPosition, { align: 'center' });
-        yPosition += 10;
-
-        // Generation date
-        doc.setFontSize(10);
-        doc.text(`生成日期：${new Date().toLocaleDateString('zh-CN')}`, 105, yPosition, { align: 'center' });
-        yPosition += 15;
-
-        // Core data section
-        if (data.coreData.length > 0) {
-            checkPageBreak(30);
-            
-            doc.setFontSize(14);
-            doc.setTextColor(74, 144, 226);
-            doc.text('核心数据', margin, yPosition);
-            yPosition += 10;
-
-            // Draw core data in a table-like format
-            const cols = 3;
-            const colWidth = maxWidth / cols;
-            let col = 0;
-            let startY = yPosition;
-
-            data.coreData.forEach((item, index) => {
-                const x = margin + (col * colWidth);
-                
-                // Draw border
-                doc.setDrawColor(221, 221, 221);
-                doc.rect(x, yPosition - 5, colWidth - 2, 15);
-                
-                // Value
-                doc.setFontSize(12);
-                doc.setTextColor(74, 144, 226);
-                doc.text(item.value, x + colWidth/2, yPosition + 2, { align: 'center' });
-                
-                // Label
-                doc.setFontSize(8);
-                doc.setTextColor(102, 102, 102);
-                doc.text(item.label, x + colWidth/2, yPosition + 8, { align: 'center' });
-
-                col++;
-                if (col >= cols) {
-                    col = 0;
-                    yPosition += 20;
-                }
-            });
-
-            if (col > 0) {
-                yPosition += 20;
-            }
-            yPosition += 10;
-        }
-
-        // Sections
-        data.sections.forEach(section => {
-            checkPageBreak(20);
-
-            // Section title
-            doc.setFontSize(16);
-            doc.setTextColor(74, 144, 226);
-            doc.text(section.title, margin, yPosition);
-            yPosition += 12;
-
-            // Section content
-            section.content.forEach(content => {
-                switch (content.type) {
-                    case 'subtitle':
-                        checkPageBreak(10);
-                        doc.setFontSize(12);
-                        doc.setTextColor(102, 102, 102);
-                        doc.text(content.text, margin, yPosition);
-                        yPosition += 8;
-                        break;
-
-                    case 'paragraph':
-                        checkPageBreak(15);
-                        doc.setFontSize(10);
-                        doc.setTextColor(85, 85, 85);
-                        const wrappedText = wrapText(content.text, maxWidth);
-                        wrappedText.forEach(line => {
-                            checkPageBreak(lineHeight);
-                            doc.text(line, margin, yPosition);
-                            yPosition += lineHeight;
-                        });
-                        yPosition += 3;
-                        break;
-
-                    case 'breakdown':
-                        checkPageBreak(20);
-                        
-                        // Breakdown title
-                        doc.setFontSize(11);
-                        doc.setTextColor(74, 144, 226);
-                        doc.text(content.title, margin, yPosition);
-                        yPosition += 8;
-
-                        // Breakdown items
-                        content.items.forEach(item => {
-                            doc.setFontSize(9);
-                            doc.setTextColor(85, 85, 85);
-                            const wrappedItem = wrapText(item, maxWidth - 10);
-                            wrappedItem.forEach(line => {
-                                checkPageBreak(lineHeight);
-                                doc.text(line, margin + 5, yPosition);
-                                yPosition += lineHeight;
-                            });
-                            yPosition += 2;
-                        });
-                        yPosition += 5;
-                        break;
-
-                    case 'list':
-                        checkPageBreak(15);
-                        content.items.forEach(item => {
-                            doc.setFontSize(9);
-                            doc.setTextColor(85, 85, 85);
-                            const wrappedItem = wrapText(`• ${item}`, maxWidth - 10);
-                            wrappedItem.forEach(line => {
-                                checkPageBreak(lineHeight);
-                                doc.text(line, margin + 5, yPosition);
-                                yPosition += lineHeight;
-                            });
-                            yPosition += 2;
-                        });
-                        yPosition += 5;
-                        break;
-
-                    case 'chart':
-                        checkPageBreak(20);
-                        // Draw a placeholder box for chart
-                        doc.setDrawColor(74, 144, 226);
-                        doc.setFillColor(240, 248, 255);
-                        doc.rect(margin, yPosition - 5, maxWidth, 15, 'FD');
-                        
-                        doc.setFontSize(10);
-                        doc.setTextColor(74, 144, 226);
-                        doc.text('📊 ' + content.text, margin + 5, yPosition + 5);
-                        yPosition += 20;
-                        break;
-                }
-            });
-
-            yPosition += 10; // Space between sections
-        });
-
-        // Footer
-        const totalPages = doc.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            doc.setFontSize(8);
-            doc.setTextColor(128, 128, 128);
-            doc.text(`第 ${i} 页，共 ${totalPages} 页`, 105, pageHeight - 10, { align: 'center' });
-        }
-    }
-
-    // Fallback method for mobile PDF generation
-    function generateFallbackMobilePDF(birthDate) {
-        // Create a very simple text-based version
-        const textContent = extractTextOnlyContent(reportContainer, birthDate);
-        
-        // Create blob and download
-        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `儿童命理报告_${birthDate.replace(/-/g, '')}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        alert('已生成文本版本报告。如需PDF版本，请使用电脑访问。');
-    }
-
-
-
-    // Extract text-only content as fallback
-    function extractTextOnlyContent(element, birthDate) {
-        let text = `儿童命理与发展指南\n生日：${birthDate}\n生成日期：${new Date().toLocaleDateString('zh-CN')}\n\n`;
-        text += '=' .repeat(50) + '\n\n';
-        
-        for (let child of element.children) {
-            if (child.classList.contains('report-section')) {
-                for (let sectionChild of child.children) {
-                    if (sectionChild.tagName === 'H2') {
-                        text += `\n【${sectionChild.textContent}】\n`;
-                        text += '-'.repeat(30) + '\n';
-                    } else if (sectionChild.tagName === 'H3') {
-                        text += `\n▶ ${sectionChild.textContent}\n`;
-                    } else if (sectionChild.tagName === 'P') {
-                        text += `${sectionChild.textContent}\n\n`;
-                    } else if (sectionChild.classList && sectionChild.classList.contains('core-data-grid')) {
-                        text += '\n【核心数据】\n';
-                        for (let card of sectionChild.children) {
-                            const value = card.querySelector('.value')?.textContent || '';
-                            const label = card.querySelector('.label')?.textContent || '';
-                            text += `${label}: ${value}\n`;
-                        }
-                        text += '\n';
-                    } else if (sectionChild.tagName === 'UL') {
-                        for (let li of sectionChild.children) {
-                            text += `• ${li.textContent}\n`;
-                        }
-                        text += '\n';
-                    }
-                }
-            }
-        }
-        
-        return text;
-    }
-
-    function generateDesktopPDF(birthDate) {
-        // Original desktop print solution
+        // Create a new window for printing
         const printWindow = window.open('', '_blank');
         
         // Create the print content
@@ -694,7 +282,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Show instructions
         alert('新窗口已打开，请点击"打印/保存为PDF"按钮，然后在打印对话框中选择"保存为PDF"。');
-    }
+    });
 
     // Helper function to extract printable content
     function extractPrintableContent(element) {
@@ -773,8 +361,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         return html;
     }
-
-
 
 
     function showError(message) {

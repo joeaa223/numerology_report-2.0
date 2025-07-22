@@ -102,41 +102,6 @@ header p {
     margin: 30px auto;
 }
 
-.loading-container {
-    text-align: center;
-    padding: 20px;
-}
-
-.loading-message {
-    margin-top: 15px;
-    color: var(--text-dark);
-    font-size: 16px;
-    font-weight: 500;
-}
-
-.loading-submessage {
-    margin-top: 8px;
-    color: #888;
-    font-size: 14px;
-}
-
-.progress-dots {
-    display: inline-block;
-    margin-left: 5px;
-}
-
-.progress-dots::after {
-    content: '';
-    animation: dots 2s infinite;
-}
-
-@keyframes dots {
-    0%, 20% { content: ''; }
-    40% { content: '.'; }
-    60% { content: '..'; }
-    80%, 100% { content: '...'; }
-}
-
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
