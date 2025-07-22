@@ -119,8 +119,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function generateMobilePDF(birthDate) {
-        // Check if required libraries are available
-        if (typeof window.jsPDF === 'undefined' || typeof html2canvas === 'undefined') {
+        // Check if jsPDF is available
+        if (typeof window.jsPDF === 'undefined') {
             alert('PDF生成库未加载完成，请稍后再试');
             saveReportBtn.disabled = false;
             saveReportBtn.textContent = '保存报告';
@@ -129,343 +129,378 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
         
-        // Create a mobile-optimized container for PDF generation
-        const pdfContainer = document.createElement('div');
-        pdfContainer.style.cssText = `
-            position: fixed;
-            top: -9999px;
-            left: 0;
-            width: 794px;
-            background: white;
-            padding: 40px;
-            font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-            color: #333;
-            line-height: 1.6;
-            box-sizing: border-box;
-        `;
-        
-        // Generate PDF-optimized content
-        pdfContainer.innerHTML = generatePDFContent(reportContainer, birthDate);
-        document.body.appendChild(pdfContainer);
-        
-        // Wait for DOM to be ready
-        setTimeout(() => {
-            // Configure html2canvas options for mobile
-            const canvasOptions = {
-                scale: 2,
-                useCORS: true,
-                allowTaint: false,
-                backgroundColor: '#ffffff',
-                width: 794,
-                height: null, // Auto height
-                scrollX: 0,
-                scrollY: 0,
-                logging: false,
-                onclone: function(clonedDoc) {
-                    // Ensure fonts are loaded in cloned document
-                    const style = clonedDoc.createElement('style');
-                    style.textContent = `
-                        * { font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', sans-serif !important; }
-                        .pdf-chart { 
-                            width: 300px; 
-                            height: 300px; 
-                            margin: 20px auto; 
-                            display: flex;
-                            align-items: center;
-                            justify-content: center;
-                            background: #f8f9ff;
-                            border: 2px solid #4A90E2;
-                            border-radius: 10px;
-                        }
-                    `;
-                    clonedDoc.head.appendChild(style);
-                }
+        try {
+            // Extract all content from the report
+            const reportData = extractReportData();
+            
+            // Create PDF using jsPDF
+            const { jsPDF } = window.jsPDF;
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            // Set up fonts and colors
+            doc.setFont('helvetica');
+            
+            // Generate PDF content
+            generatePDFContent(doc, reportData, birthDate);
+            
+            // Save the PDF
+            doc.save(filename);
+            
+            // Success
+            saveReportBtn.disabled = false;
+            saveReportBtn.textContent = '保存报告';
+            alert('PDF已成功生成并下载！请检查您的下载文件夹。');
+            
+        } catch (error) {
+            console.error('Mobile PDF generation error:', error);
+            saveReportBtn.disabled = false;
+            saveReportBtn.textContent = '保存报告';
+            
+            // Fallback to text version
+            alert('PDF生成失败，正在生成文本版本...');
+            generateFallbackMobilePDF(birthDate);
+        }
+    }
+
+    // Extract report data from DOM
+    function extractReportData() {
+        const data = {
+            coreData: [],
+            sections: []
+        };
+
+        // Extract core data
+        const coreDataGrid = reportContainer.querySelector('.core-data-grid');
+        if (coreDataGrid) {
+            const cards = coreDataGrid.querySelectorAll('.data-card');
+            cards.forEach(card => {
+                const value = card.querySelector('.value')?.textContent || '';
+                const label = card.querySelector('.label')?.textContent || '';
+                data.coreData.push({ label, value });
+            });
+        }
+
+        // Extract sections
+        const sections = reportContainer.querySelectorAll('.report-section');
+        sections.forEach(section => {
+            const sectionData = {
+                title: '',
+                content: []
             };
 
-            html2canvas(pdfContainer, canvasOptions)
-                .then(canvas => {
-                    try {
-                        const { jsPDF } = window.jsPDF;
-                        const pdf = new jsPDF('p', 'mm', 'a4');
-                        
-                        // Calculate dimensions
-                        const imgWidth = 210; // A4 width in mm
-                        const pageHeight = 297; // A4 height in mm
-                        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                        let heightLeft = imgHeight;
-                        let position = 0;
-
-                        // Add first page
-                        const imgData = canvas.toDataURL('image/jpeg', 0.95);
-                        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                        heightLeft -= pageHeight;
-
-                        // Add additional pages if needed
-                        while (heightLeft >= 0) {
-                            position = heightLeft - imgHeight;
-                            pdf.addPage();
-                            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                            heightLeft -= pageHeight;
-                        }
-
-                        // Save the PDF
-                        pdf.save(filename);
-                        
-                        // Clean up
-                        document.body.removeChild(pdfContainer);
-                        saveReportBtn.disabled = false;
-                        saveReportBtn.textContent = '保存报告';
-                        
-                        alert('PDF已成功生成并下载！请检查您的下载文件夹。');
-                        
-                    } catch (pdfError) {
-                        console.error('PDF generation error:', pdfError);
-                        document.body.removeChild(pdfContainer);
-                        saveReportBtn.disabled = false;
-                        saveReportBtn.textContent = '保存报告';
-                        
-                        // Try alternative method
-                        generateCanvasPDF(birthDate);
-                    }
-                })
-                .catch(canvasError => {
-                    console.error('Canvas generation error:', canvasError);
-                    document.body.removeChild(pdfContainer);
-                    saveReportBtn.disabled = false;
-                    saveReportBtn.textContent = '保存报告';
-                    
-                    // Try alternative method
-                    generateCanvasPDF(birthDate);
-                });
-        }, 200);
-    }
-
-    // Alternative canvas-based PDF generation
-    function generateCanvasPDF(birthDate) {
-        alert('正在尝试备用PDF生成方法...');
-        
-        // Create a simplified version using direct canvas drawing
-        const { jsPDF } = window.jsPDF;
-        const pdf = new jsPDF('p', 'mm', 'a4');
-        
-        // PDF dimensions
-        const pageWidth = 210;
-        const pageHeight = 297;
-        const margin = 20;
-        const contentWidth = pageWidth - 2 * margin;
-        
-        let yPosition = margin;
-        
-        // Helper function to add text with word wrap
-        function addText(text, fontSize = 12, isBold = false) {
-            pdf.setFontSize(fontSize);
-            pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
-            
-            const lines = pdf.splitTextToSize(text, contentWidth);
-            
-            lines.forEach(line => {
-                if (yPosition > pageHeight - margin) {
-                    pdf.addPage();
-                    yPosition = margin;
-                }
-                pdf.text(line, margin, yPosition);
-                yPosition += fontSize * 0.5;
-            });
-            
-            yPosition += 5; // Extra spacing
-        }
-        
-        // Add title
-        addText('儿童命理与发展指南', 20, true);
-        addText(`生日：${birthDate}`, 14);
-        addText(`生成日期：${new Date().toLocaleDateString('zh-CN')}`, 12);
-        yPosition += 10;
-        
-        // Extract and add content from report
-        const reportSections = reportContainer.querySelectorAll('.report-section');
-        
-        reportSections.forEach(section => {
             const h2 = section.querySelector('h2');
             if (h2) {
-                addText(h2.textContent, 16, true);
+                sectionData.title = h2.textContent;
             }
-            
-            // Add core data if exists
-            const coreDataGrid = section.querySelector('.core-data-grid');
-            if (coreDataGrid) {
-                addText('【核心数据】', 14, true);
-                const dataCards = coreDataGrid.querySelectorAll('.data-card');
-                dataCards.forEach(card => {
-                    const value = card.querySelector('.value')?.textContent || '';
-                    const label = card.querySelector('.label')?.textContent || '';
-                    addText(`${label}: ${value}`, 12);
-                });
-                yPosition += 5;
-            }
-            
-            // Add other content
-            const paragraphs = section.querySelectorAll('p');
-            paragraphs.forEach(p => {
-                if (!p.closest('.core-data-grid')) {
-                    addText(p.textContent, 12);
-                }
-            });
-            
-            // Add content breakdown
-            const breakdowns = section.querySelectorAll('.content-breakdown');
-            breakdowns.forEach(breakdown => {
-                const title = breakdown.querySelector('.breakdown-title');
-                if (title) {
-                    addText(title.textContent, 14, true);
-                }
-                
-                const description = breakdown.querySelector('.breakdown-description');
-                if (description) {
-                    addText(description.textContent, 12);
-                }
-                
-                const subtitles = breakdown.querySelectorAll('.breakdown-subtitle');
-                subtitles.forEach(subtitle => {
-                    addText(`▶ ${subtitle.textContent}`, 12, true);
-                    const nextP = subtitle.nextElementSibling;
-                    if (nextP && nextP.tagName === 'P') {
-                        addText(nextP.textContent, 12);
+
+            // Extract content blocks
+            const blocks = section.children;
+            for (let block of blocks) {
+                if (block.tagName === 'H2') continue; // Skip title
+
+                if (block.tagName === 'H3') {
+                    sectionData.content.push({
+                        type: 'subtitle',
+                        text: block.textContent
+                    });
+                } else if (block.tagName === 'P') {
+                    sectionData.content.push({
+                        type: 'paragraph',
+                        text: block.textContent
+                    });
+                } else if (block.classList && block.classList.contains('content-breakdown')) {
+                    const breakdownData = {
+                        type: 'breakdown',
+                        title: '',
+                        items: []
+                    };
+
+                    const title = block.querySelector('.breakdown-title');
+                    if (title) {
+                        breakdownData.title = title.textContent;
                     }
-                });
-            });
-            
-            // Add lists
-            const lists = section.querySelectorAll('ul');
-            lists.forEach(ul => {
-                const items = ul.querySelectorAll('li');
-                items.forEach(li => {
-                    addText(`• ${li.textContent}`, 12);
-                });
-            });
-            
-            yPosition += 10; // Section spacing
+
+                    const paragraphs = block.querySelectorAll('p');
+                    paragraphs.forEach(p => {
+                        breakdownData.items.push(p.textContent);
+                    });
+
+                    const subtitles = block.querySelectorAll('h4, h5');
+                    subtitles.forEach(sub => {
+                        breakdownData.items.push(`• ${sub.textContent}`);
+                    });
+
+                    sectionData.content.push(breakdownData);
+                } else if (block.tagName === 'UL') {
+                    const listData = {
+                        type: 'list',
+                        items: []
+                    };
+
+                    const items = block.querySelectorAll('li');
+                    items.forEach(li => {
+                        listData.items.push(li.textContent);
+                    });
+
+                    sectionData.content.push(listData);
+                } else if (block.classList && block.classList.contains('chart-container')) {
+                    sectionData.content.push({
+                        type: 'chart',
+                        text: '性格蓝图雷达图 - 请访问网站查看完整交互式图表'
+                    });
+                }
+            }
+
+            data.sections.push(sectionData);
         });
-        
-        // Add chart placeholder
-        if (yPosition > pageHeight - 60) {
-            pdf.addPage();
-            yPosition = margin;
-        }
-        
-        pdf.setFillColor(240, 248, 255);
-        pdf.rect(margin, yPosition, contentWidth, 40, 'F');
-        pdf.setTextColor(74, 144, 226);
-        addText('📊 性格蓝图雷达图', 16, true);
-        pdf.setTextColor(0, 0, 0);
-        addText('完整的交互式图表请在电脑端查看', 12);
-        
-        // Save PDF
-        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
-        pdf.save(filename);
-        
-        saveReportBtn.disabled = false;
-        saveReportBtn.textContent = '保存报告';
-        alert('PDF已生成！如需查看完整图表，请使用电脑访问。');
+
+        return data;
     }
 
-    // Generate PDF-optimized HTML content
-    function generatePDFContent(element, birthDate) {
-        let html = `
-            <div style="font-family: 'Microsoft YaHei', sans-serif; color: #333; line-height: 1.6;">
-                <div style="text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 3px solid #4A90E2;">
-                    <h1 style="color: #4A90E2; font-size: 32px; margin: 0 0 15px 0; font-weight: bold;">儿童命理与发展指南</h1>
-                    <p style="color: #666; font-size: 18px; margin: 0;">生日：${birthDate}</p>
-                    <p style="color: #999; font-size: 14px; margin-top: 10px;">生成日期：${new Date().toLocaleDateString('zh-CN')}</p>
-                </div>
-        `;
+    // Generate PDF content using jsPDF
+    function generatePDFContent(doc, data, birthDate) {
+        let yPosition = 20;
+        const pageHeight = 297; // A4 height in mm
+        const margin = 20;
+        const lineHeight = 7;
+        const maxWidth = 170; // Max text width
+
+        // Helper function to add new page if needed
+        function checkPageBreak(neededHeight) {
+            if (yPosition + neededHeight > pageHeight - margin) {
+                doc.addPage();
+                yPosition = 20;
+            }
+        }
+
+        // Helper function to wrap text
+        function wrapText(text, maxWidth) {
+            return doc.splitTextToSize(text, maxWidth);
+        }
+
+        // Title
+        doc.setFontSize(20);
+        doc.setTextColor(74, 144, 226); // Blue color
+        doc.text('儿童命理与发展指南', 105, yPosition, { align: 'center' });
+        yPosition += 15;
+
+        // Birth date
+        doc.setFontSize(12);
+        doc.setTextColor(102, 102, 102); // Gray color
+        doc.text(`生日：${birthDate}`, 105, yPosition, { align: 'center' });
+        yPosition += 10;
+
+        // Generation date
+        doc.setFontSize(10);
+        doc.text(`生成日期：${new Date().toLocaleDateString('zh-CN')}`, 105, yPosition, { align: 'center' });
+        yPosition += 15;
+
+        // Core data section
+        if (data.coreData.length > 0) {
+            checkPageBreak(30);
+            
+            doc.setFontSize(14);
+            doc.setTextColor(74, 144, 226);
+            doc.text('核心数据', margin, yPosition);
+            yPosition += 10;
+
+            // Draw core data in a table-like format
+            const cols = 3;
+            const colWidth = maxWidth / cols;
+            let col = 0;
+            let startY = yPosition;
+
+            data.coreData.forEach((item, index) => {
+                const x = margin + (col * colWidth);
+                
+                // Draw border
+                doc.setDrawColor(221, 221, 221);
+                doc.rect(x, yPosition - 5, colWidth - 2, 15);
+                
+                // Value
+                doc.setFontSize(12);
+                doc.setTextColor(74, 144, 226);
+                doc.text(item.value, x + colWidth/2, yPosition + 2, { align: 'center' });
+                
+                // Label
+                doc.setFontSize(8);
+                doc.setTextColor(102, 102, 102);
+                doc.text(item.label, x + colWidth/2, yPosition + 8, { align: 'center' });
+
+                col++;
+                if (col >= cols) {
+                    col = 0;
+                    yPosition += 20;
+                }
+            });
+
+            if (col > 0) {
+                yPosition += 20;
+            }
+            yPosition += 10;
+        }
+
+        // Sections
+        data.sections.forEach(section => {
+            checkPageBreak(20);
+
+            // Section title
+            doc.setFontSize(16);
+            doc.setTextColor(74, 144, 226);
+            doc.text(section.title, margin, yPosition);
+            yPosition += 12;
+
+            // Section content
+            section.content.forEach(content => {
+                switch (content.type) {
+                    case 'subtitle':
+                        checkPageBreak(10);
+                        doc.setFontSize(12);
+                        doc.setTextColor(102, 102, 102);
+                        doc.text(content.text, margin, yPosition);
+                        yPosition += 8;
+                        break;
+
+                    case 'paragraph':
+                        checkPageBreak(15);
+                        doc.setFontSize(10);
+                        doc.setTextColor(85, 85, 85);
+                        const wrappedText = wrapText(content.text, maxWidth);
+                        wrappedText.forEach(line => {
+                            checkPageBreak(lineHeight);
+                            doc.text(line, margin, yPosition);
+                            yPosition += lineHeight;
+                        });
+                        yPosition += 3;
+                        break;
+
+                    case 'breakdown':
+                        checkPageBreak(20);
+                        
+                        // Breakdown title
+                        doc.setFontSize(11);
+                        doc.setTextColor(74, 144, 226);
+                        doc.text(content.title, margin, yPosition);
+                        yPosition += 8;
+
+                        // Breakdown items
+                        content.items.forEach(item => {
+                            doc.setFontSize(9);
+                            doc.setTextColor(85, 85, 85);
+                            const wrappedItem = wrapText(item, maxWidth - 10);
+                            wrappedItem.forEach(line => {
+                                checkPageBreak(lineHeight);
+                                doc.text(line, margin + 5, yPosition);
+                                yPosition += lineHeight;
+                            });
+                            yPosition += 2;
+                        });
+                        yPosition += 5;
+                        break;
+
+                    case 'list':
+                        checkPageBreak(15);
+                        content.items.forEach(item => {
+                            doc.setFontSize(9);
+                            doc.setTextColor(85, 85, 85);
+                            const wrappedItem = wrapText(`• ${item}`, maxWidth - 10);
+                            wrappedItem.forEach(line => {
+                                checkPageBreak(lineHeight);
+                                doc.text(line, margin + 5, yPosition);
+                                yPosition += lineHeight;
+                            });
+                            yPosition += 2;
+                        });
+                        yPosition += 5;
+                        break;
+
+                    case 'chart':
+                        checkPageBreak(20);
+                        // Draw a placeholder box for chart
+                        doc.setDrawColor(74, 144, 226);
+                        doc.setFillColor(240, 248, 255);
+                        doc.rect(margin, yPosition - 5, maxWidth, 15, 'FD');
+                        
+                        doc.setFontSize(10);
+                        doc.setTextColor(74, 144, 226);
+                        doc.text('📊 ' + content.text, margin + 5, yPosition + 5);
+                        yPosition += 20;
+                        break;
+                }
+            });
+
+            yPosition += 10; // Space between sections
+        });
+
+        // Footer
+        const totalPages = doc.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setTextColor(128, 128, 128);
+            doc.text(`第 ${i} 页，共 ${totalPages} 页`, 105, pageHeight - 10, { align: 'center' });
+        }
+    }
+
+    // Fallback method for mobile PDF generation
+    function generateFallbackMobilePDF(birthDate) {
+        // Create a very simple text-based version
+        const textContent = extractTextOnlyContent(reportContainer, birthDate);
         
-        // Process each section
+        // Create blob and download
+        const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `儿童命理报告_${birthDate.replace(/-/g, '')}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        alert('已生成文本版本报告。如需PDF版本，请使用电脑访问。');
+    }
+
+
+
+    // Extract text-only content as fallback
+    function extractTextOnlyContent(element, birthDate) {
+        let text = `儿童命理与发展指南\n生日：${birthDate}\n生成日期：${new Date().toLocaleDateString('zh-CN')}\n\n`;
+        text += '=' .repeat(50) + '\n\n';
+        
         for (let child of element.children) {
             if (child.classList.contains('report-section')) {
-                html += '<div style="margin-bottom: 30px; page-break-inside: avoid;">';
-                
                 for (let sectionChild of child.children) {
                     if (sectionChild.tagName === 'H2') {
-                        html += `<h2 style="color: #4A90E2; font-size: 24px; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin: 25px 0 20px 0; font-weight: bold;">${sectionChild.textContent}</h2>`;
+                        text += `\n【${sectionChild.textContent}】\n`;
+                        text += '-'.repeat(30) + '\n';
                     } else if (sectionChild.tagName === 'H3') {
-                        html += `<h3 style="color: #666; font-size: 18px; margin: 20px 0 12px 0; font-weight: bold;">${sectionChild.textContent}</h3>`;
+                        text += `\n▶ ${sectionChild.textContent}\n`;
                     } else if (sectionChild.tagName === 'P') {
-                        html += `<p style="color: #555; margin-bottom: 12px; font-size: 16px; line-height: 1.7;">${sectionChild.textContent}</p>`;
+                        text += `${sectionChild.textContent}\n\n`;
                     } else if (sectionChild.classList && sectionChild.classList.contains('core-data-grid')) {
-                        // Create a clean table for core data
-                        html += `
-                            <div style="background: #f8f9ff; padding: 20px; border-radius: 10px; margin: 20px 0;">
-                                <h4 style="text-align: center; color: #4A90E2; margin-bottom: 15px; font-size: 18px;">核心数据</h4>
-                                <table style="width: 100%; border-collapse: collapse; font-size: 16px;">
-                        `;
-                        
-                        let row = '<tr>';
-                        let count = 0;
+                        text += '\n【核心数据】\n';
                         for (let card of sectionChild.children) {
                             const value = card.querySelector('.value')?.textContent || '';
                             const label = card.querySelector('.label')?.textContent || '';
-                            row += `
-                                <td style="text-align: center; padding: 15px; border: 1px solid #ddd; background: white;">
-                                    <div style="font-size: 20px; font-weight: bold; color: #4A90E2; margin-bottom: 5px;">${value}</div>
-                                    <div style="font-size: 14px; color: #666;">${label}</div>
-                                </td>
-                            `;
-                            count++;
-                            if (count % 3 === 0) {
-                                row += '</tr>';
-                                html += row;
-                                row = '<tr>';
-                            }
+                            text += `${label}: ${value}\n`;
                         }
-                        if (count % 3 !== 0) {
-                            while (count % 3 !== 0) {
-                                row += '<td style="border: 1px solid #ddd;"></td>';
-                                count++;
-                            }
-                            row += '</tr>';
-                            html += row;
-                        }
-                        html += '</table></div>';
-                    } else if (sectionChild.classList && sectionChild.classList.contains('content-breakdown')) {
-                        html += '<div style="background-color: #f9f9f9; padding: 20px; margin: 20px 0; border-radius: 10px; border-left: 5px solid #4A90E2;">';
-                        for (let breakdownChild of sectionChild.children) {
-                            if (breakdownChild.classList && breakdownChild.classList.contains('breakdown-title')) {
-                                html += `<h4 style="color: #4A90E2; font-size: 18px; margin: 0 0 12px 0; font-weight: bold;">${breakdownChild.textContent}</h4>`;
-                            } else if (breakdownChild.tagName === 'P') {
-                                html += `<p style="color: #555; margin-bottom: 12px; font-size: 16px; line-height: 1.7;">${breakdownChild.textContent}</p>`;
-                            } else if (breakdownChild.tagName === 'H4') {
-                                html += `<h5 style="margin: 18px 0 10px 0; color: #666; font-size: 16px; font-weight: bold;">▶ ${breakdownChild.textContent}</h5>`;
-                            }
-                        }
-                        html += '</div>';
+                        text += '\n';
                     } else if (sectionChild.tagName === 'UL') {
-                        html += '<ul style="margin: 12px 0; padding-left: 25px; list-style-type: none;">';
                         for (let li of sectionChild.children) {
-                            let liContent = li.innerHTML;
-                            // Process communication tips with colors
-                            liContent = liContent.replace(/<span class="comm-instead">(.*?)<\/span>/g, '<strong style="color: #e74c3c; background: #ffeaea; padding: 2px 4px; border-radius: 3px;">$1</strong>');
-                            liContent = liContent.replace(/<span class="comm-try">(.*?)<\/span>/g, '<strong style="color: #27ae60; background: #eafaf1; padding: 2px 4px; border-radius: 3px;">$1</strong>');
-                            liContent = liContent.replace(/<span class="comm-why">(.*?)<\/span>/g, '<strong style="color: #8e44ad; background: #f4ecf7; padding: 2px 4px; border-radius: 3px;">$1</strong>');
-                            html += `<li style="margin-bottom: 10px; font-size: 16px; line-height: 1.7; padding: 8px; background: white; border-radius: 5px; border-left: 3px solid #4A90E2;">• ${liContent}</li>`;
+                            text += `• ${li.textContent}\n`;
                         }
-                        html += '</ul>';
-                    } else if (sectionChild.classList && sectionChild.classList.contains('chart-container')) {
-                        html += `
-                            <div class="pdf-chart" style="text-align: center; padding: 40px; background: #f8f9ff; border: 3px solid #4A90E2; border-radius: 15px; margin: 25px 0;">
-                                <h4 style="color: #4A90E2; margin: 0 0 15px 0; font-size: 20px; font-weight: bold;">📊 性格蓝图雷达图</h4>
-                                <p style="color: #666; font-size: 16px; margin: 0;">完整的交互式图表请在电脑端查看</p>
-                                <p style="color: #999; font-size: 14px; margin-top: 10px;">或访问网站在线版本获取完整体验</p>
-                            </div>
-                        `;
+                        text += '\n';
                     }
                 }
-                
-                html += '</div>';
             }
         }
         
-        html += '</div>';
-        return html;
+        return text;
     }
 
     function generateDesktopPDF(birthDate) {
