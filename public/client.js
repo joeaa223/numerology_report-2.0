@@ -92,7 +92,79 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Create a new window for printing
+        // Detect if user is on mobile
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+        
+        if (isMobile) {
+            // Use html2pdf for mobile devices
+            generateMobilePDF(birthDate);
+        } else {
+            // Use print window for desktop
+            generateDesktopPDF(birthDate);
+        }
+    });
+
+    function generateMobilePDF(birthDate) {
+        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
+        
+        // Create a simple container for mobile PDF
+        const tempContainer = document.createElement('div');
+        tempContainer.innerHTML = `
+            <div style="font-family: Arial, sans-serif; padding: 15px; color: #333; line-height: 1.5;">
+                <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #4A90E2; padding-bottom: 15px;">
+                    <h1 style="color: #4A90E2; font-size: 24px; margin-bottom: 8px;">儿童命理与发展指南</h1>
+                    <p style="color: #666; font-size: 14px; margin: 0;">生日：${birthDate}</p>
+                </div>
+                ${extractMobileContent(reportContainer)}
+            </div>
+        `;
+
+        // Add to page temporarily (hidden)
+        document.body.appendChild(tempContainer);
+        tempContainer.style.position = 'absolute';
+        tempContainer.style.top = '-9999px';
+        tempContainer.style.width = '800px';
+
+        // Configure PDF options for mobile
+        const opt = {
+            margin: 0.4,
+            filename: filename,
+            image: { type: 'jpeg', quality: 0.8 },
+            html2canvas: { 
+                scale: 1.2,
+                useCORS: false,
+                allowTaint: false,
+                backgroundColor: '#ffffff',
+                width: 800
+            },
+            jsPDF: { 
+                unit: 'in', 
+                format: 'a4', 
+                orientation: 'portrait' 
+            }
+        };
+
+        // Generate and download PDF
+        html2pdf().set(opt).from(tempContainer).save().then(() => {
+            document.body.removeChild(tempContainer);
+            saveReportBtn.disabled = false;
+            saveReportBtn.textContent = '保存报告';
+            
+            // Show mobile-specific success message
+            alert('PDF已生成并下载到您的设备！请在下载文件夹中查看。');
+        }).catch((error) => {
+            console.error('Mobile PDF generation failed:', error);
+            if (document.body.contains(tempContainer)) {
+                document.body.removeChild(tempContainer);
+            }
+            saveReportBtn.disabled = false;
+            saveReportBtn.textContent = '保存报告';
+            alert('PDF生成失败，请重试。如果问题持续，请使用电脑访问。');
+        });
+    }
+
+    function generateDesktopPDF(birthDate) {
+        // Original desktop print solution
         const printWindow = window.open('', '_blank');
         
         // Create the print content
@@ -282,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Show instructions
         alert('新窗口已打开，请点击"打印/保存为PDF"按钮，然后在打印对话框中选择"保存为PDF"。');
-    });
+    }
 
     // Helper function to extract printable content
     function extractPrintableContent(element) {
@@ -352,6 +424,75 @@ document.addEventListener('DOMContentLoaded', () => {
                                 </div>
                             `;
                         }
+                    }
+                }
+                
+                html += '</div>';
+            }
+        }
+        
+        return html;
+    }
+
+    // Helper function to extract content for mobile PDF (simpler format)
+    function extractMobileContent(element) {
+        let html = '';
+        
+        for (let child of element.children) {
+            if (child.classList.contains('report-section')) {
+                html += '<div style="margin-bottom: 25px; padding: 15px; border: 1px solid #eee; border-radius: 8px;">';
+                
+                for (let sectionChild of child.children) {
+                    if (sectionChild.tagName === 'H2') {
+                        html += `<h2 style="color: #4A90E2; font-size: 18px; border-bottom: 1px solid #ddd; padding-bottom: 8px; margin-bottom: 12px;">${sectionChild.textContent}</h2>`;
+                    } else if (sectionChild.tagName === 'H3') {
+                        html += `<h3 style="color: #666; font-size: 16px; margin-top: 15px; margin-bottom: 8px;">${sectionChild.textContent}</h3>`;
+                    } else if (sectionChild.tagName === 'P') {
+                        html += `<p style="color: #555; margin-bottom: 8px; font-size: 13px;">${sectionChild.textContent}</p>`;
+                    } else if (sectionChild.classList && sectionChild.classList.contains('core-data-grid')) {
+                        // Convert to simple table for mobile
+                        html += '<table style="width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px;">';
+                        let count = 0;
+                        for (let card of sectionChild.children) {
+                            if (count % 2 === 0) html += '<tr>';
+                            const value = card.querySelector('.value')?.textContent || '';
+                            const label = card.querySelector('.label')?.textContent || '';
+                            html += `
+                                <td style="text-align: center; padding: 10px; border: 1px solid #ddd;">
+                                    <div style="font-size: 18px; font-weight: bold; color: #4A90E2;">${value}</div>
+                                    <div style="font-size: 10px; color: #666; margin-top: 3px;">${label}</div>
+                                </td>
+                            `;
+                            count++;
+                            if (count % 2 === 0) html += '</tr>';
+                        }
+                        if (count % 2 !== 0) html += '</tr>';
+                        html += '</table>';
+                    } else if (sectionChild.classList && sectionChild.classList.contains('content-breakdown')) {
+                        html += '<div style="background-color: #f9f9f9; padding: 12px; margin: 12px 0; border-radius: 6px;">';
+                        for (let breakdownChild of sectionChild.children) {
+                            if (breakdownChild.classList && breakdownChild.classList.contains('breakdown-title')) {
+                                html += `<h4 style="color: #4A90E2; font-size: 14px; margin-bottom: 8px;">${breakdownChild.textContent}</h4>`;
+                            } else if (breakdownChild.tagName === 'P') {
+                                html += `<p style="color: #555; margin-bottom: 8px; font-size: 12px;">${breakdownChild.textContent}</p>`;
+                            } else if (breakdownChild.tagName === 'H4') {
+                                html += `<h5 style="margin-top: 12px; color: #666; font-size: 12px;">▶ ${breakdownChild.textContent}</h5>`;
+                            }
+                        }
+                        html += '</div>';
+                    } else if (sectionChild.tagName === 'UL') {
+                        html += '<ul style="margin: 8px 0; padding-left: 15px;">';
+                        for (let li of sectionChild.children) {
+                            html += `<li style="margin-bottom: 6px; font-size: 12px;">${li.innerHTML}</li>`;
+                        }
+                        html += '</ul>';
+                    } else if (sectionChild.classList && sectionChild.classList.contains('chart-container')) {
+                        html += `
+                            <div style="text-align: center; padding: 20px; background-color: #f0f0f0; border-radius: 8px; margin: 15px 0;">
+                                <h4 style="color: #4A90E2; margin-bottom: 8px; font-size: 14px;">性格蓝图雷达图</h4>
+                                <p style="color: #666; font-size: 11px;">完整的交互式图表请在电脑上查看</p>
+                            </div>
+                        `;
                     }
                 }
                 
