@@ -1,0 +1,19 @@
+{
+    "name": "bazi-report",
+    "version": "1.0.0",
+    "type": "module",
+    "description": "Numerology and AI Coach tools",
+    "main": "numerology_report.js",
+    "scripts": {
+        "start": "node server.js",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "keywords": [],
+    "author": "",
+    "dependencies": {
+        "@google/genai": "latest",
+        "chart.js": "^4.5.0",
+        "dotenv": "^17.2.0",
+        "express": "^4.19.2"
+    }
+}

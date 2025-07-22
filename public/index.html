@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>儿童命理与发展指南</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>儿童命理与发展指南</h1>
+            <p>输入您孩子的出生日期，探索他/她的内在天赋与潜能。</p>
+        </header>
+        <main>
+            <div class="input-section">
+                <input type="date" id="birthday-input" required>
+                <button id="generate-btn">生成报告</button>
+            </div>
+            <div id="loader" class="loader" style="display: none;"></div>
+            <div id="error-message" class="error-message" style="display: none;"></div>
+            <div id="report-container" class="report-container">
+                 <!-- Core data and chart will be inserted here -->
+            </div>
+        </main>
+        <footer>
+            <div class="footer-buttons">
+                <button id="generate-again-btn" style="display: none;">生成另一份报告</button>
+                <button id="save-report-btn" style="display: none;">保存报告</button>
+            </div>
+        </footer>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="client.js"></script>
+</body>
+</html>
