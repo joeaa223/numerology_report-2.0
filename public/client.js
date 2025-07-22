@@ -3,10 +3,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const generateBtn = document.getElementById('generate-btn');
     const generateAgainBtn = document.getElementById('generate-again-btn');
     const saveReportBtn = document.getElementById('save-report-btn');
+    const saveImageBtn = document.getElementById('save-image-btn');
     const loader = document.getElementById('loader');
     const errorMessage = document.getElementById('error-message');
     const reportContainer = document.getElementById('report-container');
     const inputSection = document.querySelector('.input-section');
+
+    // Detect if user is on mobile device
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
 
     // Set default date to a reasonable example
     birthdayInput.value = '2018-05-15';
@@ -43,10 +47,19 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- Render Report ---
             renderReport(data);
 
-            // Hide initial form and show 'generate again' button
+            // Hide initial form and show appropriate save buttons
             inputSection.style.display = 'none';
             generateAgainBtn.style.display = 'block';
-            saveReportBtn.style.display = 'block';
+            
+            if (isMobileDevice) {
+                // On mobile, show image save option
+                saveImageBtn.style.display = 'block';
+                saveReportBtn.style.display = 'none';
+            } else {
+                // On desktop, show both options
+                saveReportBtn.style.display = 'block';
+                saveImageBtn.style.display = 'block';
+            }
 
 
         } catch (error) {
@@ -62,9 +75,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Clear the report
         reportContainer.innerHTML = '';
 
-        // Hide the 'generate again' button
+        // Hide the save buttons
         generateAgainBtn.style.display = 'none';
         saveReportBtn.style.display = 'none';
+        saveImageBtn.style.display = 'none';
 
         // Show the initial form
         inputSection.style.display = 'flex';
@@ -282,6 +296,144 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Show instructions
         alert('新窗口已打开，请点击"打印/保存为PDF"按钮，然后在打印对话框中选择"保存为PDF"。');
+    });
+
+    saveImageBtn.addEventListener('click', async () => {
+        // Show loading state
+        saveImageBtn.disabled = true;
+        saveImageBtn.textContent = '正在生成图片...';
+
+        // Get the birth date for filename
+        const birthDate = birthdayInput.value;
+        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.png`;
+        
+        // Check if content exists
+        if (reportContainer.innerHTML.length < 100) {
+            alert('报告内容为空，请先生成报告');
+            saveImageBtn.disabled = false;
+            saveImageBtn.textContent = '保存为图片';
+            return;
+        }
+
+        try {
+            // Create a temporary container for image generation
+            const tempContainer = document.createElement('div');
+            tempContainer.style.cssText = `
+                position: absolute;
+                top: -9999px;
+                left: -9999px;
+                width: 800px;
+                font-family: 'Microsoft YaHei', 'SimSun', Arial, sans-serif;
+                background-color: white;
+                padding: 30px;
+                line-height: 1.6;
+                color: #333;
+            `;
+
+            // Add header
+            const header = document.createElement('div');
+            header.innerHTML = `
+                <h1 style="color: #4A90E2; text-align: center; margin-bottom: 10px; font-size: 32px;">儿童命理与发展指南</h1>
+                <p style="text-align: center; margin-bottom: 30px; font-size: 18px; color: #666;">生日：${birthDate}</p>
+                <hr style="border: 1px solid #4A90E2; margin-bottom: 30px;">
+            `;
+            tempContainer.appendChild(header);
+
+            // Clone and simplify the report content
+            const reportClone = reportContainer.cloneNode(true);
+            
+            // Apply styles for better image rendering
+            const applyImageStyles = (element) => {
+                if (element.nodeType === 1) {
+                    // Remove any problematic CSS classes and apply inline styles
+                    element.removeAttribute('class');
+                    
+                    const tagName = element.tagName.toLowerCase();
+                    switch(tagName) {
+                        case 'h2':
+                            element.style.cssText = 'color: #4A90E2; font-size: 24px; margin: 30px 0 15px 0; border-bottom: 2px solid #4A90E2; padding-bottom: 8px;';
+                            break;
+                        case 'h3':
+                            element.style.cssText = 'color: #666; font-size: 20px; margin: 20px 0 10px 0;';
+                            break;
+                        case 'h4':
+                            element.style.cssText = 'color: #333; font-size: 16px; margin: 15px 0 8px 0;';
+                            break;
+                        case 'p':
+                            element.style.cssText = 'color: #555; margin: 8px 0; font-size: 14px; line-height: 1.6;';
+                            break;
+                        case 'li':
+                            element.style.cssText = 'color: #555; margin: 5px 0; font-size: 14px; line-height: 1.6;';
+                            break;
+                        case 'div':
+                            if (element.querySelector('.value')) {
+                                // Data card
+                                element.style.cssText = 'display: inline-block; text-align: center; margin: 10px; padding: 15px; border: 1px solid #ddd; border-radius: 8px; width: 120px;';
+                                const value = element.querySelector('.value');
+                                const label = element.querySelector('.label');
+                                if (value) value.style.cssText = 'font-size: 24px; font-weight: bold; color: #4A90E2;';
+                                if (label) label.style.cssText = 'font-size: 12px; color: #666; margin-top: 5px;';
+                            } else {
+                                element.style.cssText = 'margin: 15px 0; padding: 15px; background-color: #f9f9f9; border-radius: 8px; border-left: 4px solid #4A90E2;';
+                            }
+                            break;
+                        case 'canvas':
+                            // Keep canvas as is for chart rendering
+                            break;
+                    }
+                }
+                
+                // Process children
+                for (let child of element.children) {
+                    applyImageStyles(child);
+                }
+            };
+            
+            applyImageStyles(reportClone);
+            tempContainer.appendChild(reportClone);
+            
+            // Add to document temporarily
+            document.body.appendChild(tempContainer);
+            
+            // Wait for any charts to render
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // Generate image using html2canvas
+            const canvas = await html2canvas(tempContainer, {
+                width: 800,
+                height: tempContainer.scrollHeight,
+                backgroundColor: '#ffffff',
+                scale: 2,
+                useCORS: true,
+                allowTaint: true
+            });
+            
+            // Remove temporary container
+            document.body.removeChild(tempContainer);
+            
+            // Create download link
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            
+            // Trigger download
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Show success message
+            if (isMobileDevice) {
+                alert('图片已生成！请检查您的下载文件夹或照片库。');
+            }
+            
+        } catch (error) {
+            console.error('Image generation failed:', error);
+            alert('图片生成失败，请重试。');
+        } finally {
+            // Reset button state
+            saveImageBtn.disabled = false;
+            saveImageBtn.textContent = '保存为图片';
+        }
     });
 
     // Helper function to extract printable content
