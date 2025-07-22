@@ -562,7 +562,7 @@ document.addEventListener('DOMContentLoaded', () => {
             <ul>${renderCommKeys(guidanceCommunicationAndBoundaries.communicationKeys_Boundaries)}</ul>
 
             ${karmicLessonFocus && karmicLessonFocus.title ? `
-                <h3>特别关注：${karmicLessonFocus.title}</h3>
+                <h3>${karmicLessonFocus.title}</h3>
                 <p>${karmicLessonFocus.description}</p>
             ` : ''}
 
