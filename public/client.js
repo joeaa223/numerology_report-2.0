@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         generateBtn.disabled = true;
 
         try {
+            // Use relative URL for API calls - works both locally and on Vercel
             const response = await fetch('/api/generate-report', {
                 method: 'POST',
                 headers: {
