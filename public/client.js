@@ -1,3 +1,29 @@
+// Helper function to detect mobile devices
+function isMobileDevice() {
+    return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+// Helper function to show save instructions
+function showSaveInstructions() {
+    if (isMobileDevice()) {
+        alert(`图片已保存到下载文件夹！📱
+
+移动端用户操作步骤：
+1️⃣ 打开"文件管理器"或"下载"应用
+2️⃣ 找到刚才下载的图片文件
+3️⃣ 长按图片，选择"保存到相册"
+4️⃣ 或点击"分享"按钮，选择"保存到照片"
+
+💡 提示：部分手机可能需要在"设置"中允许浏览器访问存储权限。`);
+    } else {
+        alert(`图片已保存到下载文件夹！💻
+
+电脑用户：
+您可以在浏览器的下载文件夹中找到保存的图片文件。
+通常位置：下载 > ${document.querySelector('#birthday-input').value ? `儿童命理报告_${document.querySelector('#birthday-input').value.replace(/-/g, '')}.png` : '儿童命理报告.png'}`);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const birthdayInput = document.getElementById('birthday-input');
     const generateBtn = document.getElementById('generate-btn');
@@ -29,6 +55,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Set default date to a reasonable example
     birthdayInput.value = '2018-05-15';
+    
+    // Update button text based on device type
+    if (isMobileDevice()) {
+        saveImageBtn.textContent = '分享/保存图片';
+    } else {
+        saveImageBtn.textContent = '保存为图片';
+    }
     
     // Set date range: from 90 years ago to today
     const today = new Date();
@@ -124,7 +157,11 @@ document.addEventListener('DOMContentLoaded', () => {
     saveImageBtn.addEventListener('click', async () => {
         // Show loading state
         saveImageBtn.disabled = true;
-        saveImageBtn.textContent = '正在生成图片...';
+        if (isMobileDevice()) {
+            saveImageBtn.textContent = '正在准备分享...';
+        } else {
+            saveImageBtn.textContent = '正在生成图片...';
+        }
 
         // Get the birth date for filename
         const birthDate = birthdayInput.value;
@@ -178,7 +215,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Failed to create image blob');
             }
 
-            // Create download URL from blob
+            // Try Web Share API first (for mobile devices and supported browsers)
+            if (navigator.share) {
+                try {
+                    const file = new File([blob], filename, { type: 'image/png' });
+                    const shareData = {
+                        files: [file],
+                        title: '儿童命理报告',
+                        text: '我的孩子的数字命理与发展指南报告'
+                    };
+
+                    // Check if sharing files is supported
+                    if (navigator.canShare && navigator.canShare(shareData)) {
+                        await navigator.share(shareData);
+                        alert('图片分享成功！您可以选择保存到相册或分享给他人。📱✨');
+                        return; // Success, exit early
+                    } else {
+                        // Try sharing without files (URL only) as fallback
+                        const textShareData = {
+                            title: '儿童命理报告',
+                            text: '我刚刚生成了我孩子的数字命理与发展指南报告！'
+                        };
+                        
+                        if (navigator.canShare && navigator.canShare(textShareData)) {
+                            // Create a temporary URL for the blob and share it
+                            const tempUrl = URL.createObjectURL(blob);
+                            await navigator.share({
+                                ...textShareData,
+                                url: tempUrl
+                            });
+                            
+                            // Clean up the temporary URL
+                            setTimeout(() => URL.revokeObjectURL(tempUrl), 1000);
+                            
+                            alert('分享链接已创建！图片也将同时下载到您的设备。📱');
+                            // Continue to download as backup
+                        }
+                    }
+                } catch (shareError) {
+                    console.log('Web Share API failed, falling back to download:', shareError);
+                    // Fall through to traditional download
+                }
+            }
+
+            // Fallback: Traditional download method
             const url = URL.createObjectURL(blob);
             
             // Create download link
@@ -197,8 +277,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 URL.revokeObjectURL(url);
             }, 100);
             
-            // Show success message
-            alert('图片已保存！');
+            // Show detailed save instructions
+            showSaveInstructions();
             
         } catch (error) {
             console.error('Image generation failed:', error);
@@ -206,15 +286,27 @@ document.addEventListener('DOMContentLoaded', () => {
             // Fallback: try a simpler text-only approach
             try {
                 await generateSimpleTextImage(birthDate, filename);
-                alert('已生成简化版本的图片报告。');
+                if (isMobileDevice()) {
+                    alert('已生成简化版本的图片报告。📱\n请在下载文件夹中查找，然后保存到相册。');
+                } else {
+                    alert('已生成简化版本的图片报告。💻\n已保存到下载文件夹。');
+                }
             } catch (fallbackError) {
                 console.error('Fallback image generation also failed:', fallbackError);
-                alert('图片生成失败。建议使用"保存报告"功能获取PDF版本，或截屏保存报告内容。');
+                if (isMobileDevice()) {
+                    alert('图片生成失败。📱\n\n替代方案：\n1️⃣ 使用手机截屏功能保存报告\n2️⃣ 长按报告内容选择"保存图片"（如果支持）');
+                } else {
+                    alert('图片生成失败。💻\n\n替代方案：\n1️⃣ 使用浏览器的打印功能保存为PDF\n2️⃣ 使用截图工具保存报告内容');
+                }
             }
         } finally {
             // Reset button state
             saveImageBtn.disabled = false;
-            saveImageBtn.textContent = '保存为图片';
+            if (isMobileDevice()) {
+                saveImageBtn.textContent = '分享/保存图片';
+            } else {
+                saveImageBtn.textContent = '保存为图片';
+            }
         }
     });
 
