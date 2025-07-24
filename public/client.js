@@ -3,18 +3,61 @@ function isMobileDevice() {
     return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
+// Helper function to check Web Share API capabilities
+function getShareCapabilities() {
+    const capabilities = {
+        hasWebShare: !!navigator.share,
+        canShareFiles: false,
+        canShareText: false,
+        userAgent: navigator.userAgent,
+        isMobile: isMobileDevice()
+    };
+    
+    if (capabilities.hasWebShare && navigator.canShare) {
+        // Test file sharing
+        try {
+            const testFile = new File(['test'], 'test.png', { type: 'image/png' });
+            capabilities.canShareFiles = navigator.canShare({ files: [testFile] });
+        } catch (e) {
+            capabilities.canShareFiles = false;
+        }
+        
+        // Test text sharing
+        try {
+            capabilities.canShareText = navigator.canShare({ 
+                title: 'Test', 
+                text: 'Test content' 
+            });
+        } catch (e) {
+            capabilities.canShareText = false;
+        }
+    }
+    
+    return capabilities;
+}
+
 // Helper function to show save instructions
 function showSaveInstructions() {
+    const capabilities = getShareCapabilities();
+    
     if (isMobileDevice()) {
-        alert(`图片已保存到下载文件夹！📱
-
-移动端用户操作步骤：
+        let message = `图片已保存到下载文件夹！📱\n\n`;
+        
+        if (!capabilities.hasWebShare) {
+            message += `您的浏览器不支持直接分享功能。\n\n`;
+        } else if (!capabilities.canShareFiles && !capabilities.canShareText) {
+            message += `分享功能受限，使用传统下载方式。\n\n`;
+        }
+        
+        message += `移动端用户操作步骤：
 1️⃣ 打开"文件管理器"或"下载"应用
 2️⃣ 找到刚才下载的图片文件
 3️⃣ 长按图片，选择"保存到相册"
 4️⃣ 或点击"分享"按钮，选择"保存到照片"
 
-💡 提示：部分手机可能需要在"设置"中允许浏览器访问存储权限。`);
+💡 提示：部分手机可能需要在"设置"中允许浏览器访问存储权限。`;
+        
+        alert(message);
     } else {
         alert(`图片已保存到下载文件夹！💻
 
@@ -56,9 +99,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Set default date to a reasonable example
     birthdayInput.value = '2018-05-15';
     
-    // Update button text based on device type
+    // Update button text based on device type and capabilities
+    const initialCapabilities = getShareCapabilities();
+    console.log('Initial share capabilities:', initialCapabilities);
+    
     if (isMobileDevice()) {
-        saveImageBtn.textContent = '分享/保存图片';
+        if (initialCapabilities.canShareFiles || initialCapabilities.canShareText) {
+            saveImageBtn.textContent = '分享/保存图片';
+        } else {
+            saveImageBtn.textContent = '保存图片';
+        }
     } else {
         saveImageBtn.textContent = '保存为图片';
     }
@@ -215,9 +265,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Failed to create image blob');
             }
 
-            // Try Web Share API first (primarily for mobile devices)
-            // Desktop browsers have limited support, so we prioritize mobile
-            if (navigator.share && (isMobileDevice() || navigator.canShare)) {
+            // Check Web Share API capabilities
+            const shareCapabilities = getShareCapabilities();
+            let shareAttempted = false;
+            
+            console.log('Share capabilities:', shareCapabilities);
+            
+            if (shareCapabilities.hasWebShare) {
+                console.log('Web Share API available, attempting to share...');
+                
                 try {
                     const file = new File([blob], filename, { type: 'image/png' });
                     const shareData = {
@@ -227,36 +283,46 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
 
                     // Check if sharing files is supported
-                    if (navigator.canShare && navigator.canShare(shareData)) {
+                    if (shareCapabilities.canShareFiles) {
+                        console.log('File sharing supported, opening share dialog...');
+                        shareAttempted = true;
                         await navigator.share(shareData);
                         alert('图片分享成功！您可以选择保存到相册或分享给他人。📱✨');
                         return; // Success, exit early
                     } else {
-                        // Try sharing without files (URL only) as fallback
+                        console.log('File sharing not supported, trying text/URL sharing...');
+                        
+                        // Try sharing without files as fallback
                         const textShareData = {
                             title: '儿童命理报告',
-                            text: '我刚刚生成了我孩子的数字命理与发展指南报告！'
+                            text: '我刚刚生成了我孩子的数字命理与发展指南报告！查看详细内容请下载图片。'
                         };
                         
-                        if (navigator.canShare && navigator.canShare(textShareData)) {
-                            // Create a temporary URL for the blob and share it
-                            const tempUrl = URL.createObjectURL(blob);
-                            await navigator.share({
-                                ...textShareData,
-                                url: tempUrl
-                            });
-                            
-                            // Clean up the temporary URL
-                            setTimeout(() => URL.revokeObjectURL(tempUrl), 1000);
-                            
-                            alert('分享链接已创建！图片也将同时下载到您的设备。📱');
+                        if (shareCapabilities.canShareText) {
+                            console.log('Text sharing supported, opening share dialog...');
+                            shareAttempted = true;
+                            await navigator.share(textShareData);
+                            alert('分享成功！图片将同时下载到您的设备，请查看下载文件夹。📱');
                             // Continue to download as backup
+                        } else {
+                            console.log('Neither file nor text sharing supported');
                         }
                     }
                 } catch (shareError) {
-                    console.log('Web Share API failed, falling back to download:', shareError);
-                    // Fall through to traditional download
+                    console.log('Web Share API failed:', shareError);
+                    
+                    // Check if user cancelled the share dialog
+                    if (shareError.name === 'AbortError') {
+                        console.log('User cancelled share dialog');
+                        alert('分享已取消。图片将下载到您的设备。📱');
+                        // Continue to download
+                    } else {
+                        console.log('Share API error, falling back to download');
+                        // Fall through to traditional download
+                    }
                 }
+            } else {
+                console.log('Web Share API not available');
             }
 
             // Fallback: Traditional download method
@@ -278,8 +344,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 URL.revokeObjectURL(url);
             }, 100);
             
-            // Show detailed save instructions
-            showSaveInstructions();
+            // Only show detailed instructions if share was not attempted or successful
+            if (!shareAttempted) {
+                showSaveInstructions();
+            }
             
         } catch (error) {
             console.error('Image generation failed:', error);
