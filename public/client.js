@@ -215,8 +215,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error('Failed to create image blob');
             }
 
-            // Try Web Share API first (for mobile devices and supported browsers)
-            if (navigator.share) {
+            // Try Web Share API first (primarily for mobile devices)
+            // Desktop browsers have limited support, so we prioritize mobile
+            if (navigator.share && (isMobileDevice() || navigator.canShare)) {
                 try {
                     const file = new File([blob], filename, { type: 'image/png' });
                     const shareData = {
