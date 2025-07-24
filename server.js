@@ -18,7 +18,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // API endpoint to generate the numerology report
 app.post('/api/generate-report', async (req, res) => {
-    const { birthday } = req.body;
+    const { birthday, gender } = req.body;
 
     if (!birthday) {
         return res.status(400).json({ error: 'Birthday is required' });
@@ -26,7 +26,7 @@ app.post('/api/generate-report', async (req, res) => {
 
     try {
         const calculator = new NumerologyCalculator();
-        const result = calculator.calculate(birthday);
+        const result = calculator.calculate(birthday, gender);
 
         const report = await getReport({
             personality: result.mainPersonality,
@@ -36,7 +36,8 @@ app.post('/api/generate-report', async (req, res) => {
             karmicDebtOrigin: result.lifePath.karmicDebtOrigin,
             birthday: result.birthday,
             challenges: result.challenges,
-            personalYear: result.personalYear
+            personalYear: result.personalYear,
+            gender: result.gender
         });
         
         // The report from Gemini is a JSON string in our case, so we parse it.

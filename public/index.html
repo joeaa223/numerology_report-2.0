@@ -17,7 +17,25 @@
         </header>
         <main>
             <div class="input-section">
-                <input type="date" id="birthday-input" required min="1934-01-01" max="2024-12-31">
+                <div class="input-group">
+                    <label for="birthday-input">出生日期</label>
+                    <input type="date" id="birthday-input" required min="1934-01-01" max="2024-12-31">
+                </div>
+                <div class="input-group">
+                    <label for="gender-input">性别</label>
+                    <div class="gender-selector">
+                        <input type="radio" id="gender-male" name="gender" value="Male" required>
+                        <label for="gender-male" class="gender-option">
+                            <span class="gender-icon">👦</span>
+                            <span class="gender-text">男孩</span>
+                        </label>
+                        <input type="radio" id="gender-female" name="gender" value="Female" required>
+                        <label for="gender-female" class="gender-option">
+                            <span class="gender-icon">👧</span>
+                            <span class="gender-text">女孩</span>
+                        </label>
+                    </div>
+                </div>
                 <button id="generate-btn">生成报告</button>
             </div>
             <div id="loader" style="display: none;">

@@ -8,7 +8,7 @@ const language = "Mandarin";
 
 // No longer need readline, util, rl, or question for a web server.
 
-export async function getReport({personality, age, lifePath, isMaster, karmicDebtOrigin, birthday, challenges, personalYear}) {
+export async function getReport({personality, age, lifePath, isMaster, karmicDebtOrigin, birthday, challenges, personalYear, gender}) {
         let opening = await ai.models.generateContent({
         model: "gemini-2.5-pro",
         config: {
@@ -60,6 +60,8 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                 },
                                 supportingCast: {
                                     type: Type.ARRAY,
+                                    minItems: 2,
+                                    maxItems: 2,
                                     description: "Two supporting archetypes derived from the birthday number and challenges.main.",
                                     items: {
                                         type: Type.OBJECT,
@@ -75,7 +77,9 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                 coreDynamic: { type: Type.STRING, description: "A paragraph explaining the interplay between the Team Captain and the supporting cast, including potential conflicts and synergies." },
                                 reflectionQuestions: {
                                     type: Type.ARRAY,
-                                    description: "An array of 2-3 thought-provoking questions for the parent to reflect on regarding their child's inner team.",
+                                    minItems: 3,
+                                    maxItems: 3,
+                                    description: "An array of 3 thought-provoking questions for the parent to reflect on regarding their child's inner team.",
                                     items: { type: Type.STRING }
                                 },  
                                 },
@@ -115,7 +119,9 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                 },
                                 reflectionQuestions: {
                                     type: Type.ARRAY,
-                                    description: "An array of 2-3 thought-provoking questions for the parent to reflect on regarding their child's inner world.",
+                                    minItems: 3,
+                                    maxItems: 3,
+                                    description: "An array of 3 thought-provoking questions for the parent to reflect on regarding their child's inner world.",
                                     items: { type: Type.STRING }
                                 }
                             },
@@ -146,7 +152,9 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                                 name: { type: Type.STRING, description: "A descriptive name for the recommended learning environment (e.g., 'The Creative Studio')" },
                                                 points: {
                                                     type: Type.ARRAY,
-                                                    description: "An array of 3-4 bullet points on setting up the child's physical and emotional space, derived from their Life Path and Birthday numbers. Provide atleast 3 specific and actionable examples.",
+                                                    minItems: 4,
+                                                    maxItems: 4,
+                                                    description: "An array of 4 bullet points on setting up the child's physical and emotional space, derived from their Life Path and Birthday numbers. Provide atleast 3 specific and actionable examples.",
                                                     items: { type: Type.STRING }
                                                 }
                                             },
@@ -155,6 +163,8 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                         },
                                         communicationKeys_Potential: {
                                             type: Type.ARRAY,
+                                            minItems: 4,
+                                            maxItems: 4,
                                             description: "Provide an array of 4 communication strategies to foster curiosity and build on the child's strengths.",
                                             items: {
                                                 type: Type.OBJECT,
@@ -178,6 +188,8 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                         //title: { type: Type.STRING, description: "e.g., 'Guidance for Growth: Discipline & Boundaries'" },
                                         communicationKeys_Boundaries: {
                                             type: Type.ARRAY,
+                                            minItems: 4,
+                                            maxItems: 4,
                                             description: "Provide an array of 4 communication strategies for setting firm, compassionate boundaries, addressing challenges and handling difficult behavior.",
                                             items: {
                                                 type: Type.OBJECT,
@@ -222,7 +234,9 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
 
                                 reflectionQuestions: {
                                     type: Type.ARRAY,
-                                    description: "An array of 2-3 thought-provoking questions for the parent to reflect on regarding their communication style, the child's social style and education style.",
+                                    minItems: 3,
+                                    maxItems: 3,
+                                    description: "An array of 3 thought-provoking questions for the parent to reflect on regarding their communication style, the child's social style and education style.",
                                     items: { type: Type.STRING }
                                 }
                             },
@@ -235,6 +249,8 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                 //title: { type: Type.STRING },
                                 recommendedHobbies: {
                                     type: Type.ARRAY,
+                                    minItems: 3,
+                                    maxItems: 3,
                                     description: "An array of 3 different tiers of recommended hobbies, activities, or interests that align with the child's Life Path and Birthday numbers.",
                                     items: {
                                         type: Type.OBJECT,
@@ -243,7 +259,9 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                             theme: { type: Type.STRING, description: "A brief theme or focus for the hobbies, e.g., 'Creative Expression'." },
                                             items: {
                                                 type: Type.ARRAY,
-                                                description: "An array of 3-5 recommended specific hobbies, activities, or interests that align with the child's Life Path and Birthday numbers. E.g., 'Drawing', 'Nature Exploration', 'Music Appreciation'.",
+                                                minItems: 5,
+                                                maxItems: 5,
+                                                description: "An array of 5 recommended specific hobbies, activities, or interests that align with the child's Life Path and Birthday numbers. E.g., 'Drawing', 'Nature Exploration', 'Music Appreciation'.",
                                                 items: { type: Type.STRING }
                                             }
                                         },
@@ -253,6 +271,8 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                 },
                                 recommendedCareers: {
                                     type: Type.ARRAY,
+                                    minItems: 3,
+                                    maxItems: 3,
                                     description: "An array of 3 different tiers of recommended career paths that align with the child's Life Path and Birthday numbers.",
                                     items: {
                                         type: Type.OBJECT,
@@ -260,7 +280,9 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                             tier: { type: Type.STRING, description: "The tier of the recommendation, e.g., 'Tier 1' for primary career paths." },
                                             items: {
                                                 type: Type.ARRAY,
-                                                description: "An array of 3-5 recommended specific career paths for the future. E.g., 'Creative Director', 'Environmental Scientist', 'Community Organizer'.",
+                                                minItems: 5,
+                                                maxItems: 5,
+                                                description: "An array of 5 recommended specific career paths for the future. E.g., 'Creative Director', 'Environmental Scientist', 'Community Organizer'.",
                                                 items: { type: Type.STRING }
                                             }
                                         },
@@ -270,7 +292,9 @@ export async function getReport({personality, age, lifePath, isMaster, karmicDeb
                                 },
                                 reflectionQuestions: {
                                     type: Type.ARRAY,
-                                    description: "An array of 1-2 thought-provoking questions for the parent to reflect on regarding their child's passions and future aspirations.",
+                                    minItems: 2,
+                                    maxItems: 2,
+                                    description: "An array of 2 thought-provoking questions for the parent to reflect on regarding their child's passions and future aspirations.",
                                     items: { type: Type.STRING }
                                 }
                             },
@@ -290,7 +314,10 @@ You are an expert in developmental psychology and Pythagorean numerology, with a
 
 2. #TONE & PRINCIPLES#
 
-* **Age-Appropriate Context is CRITICAL**: User is ${age} year old. All examples, scenarios, and advice provided in the report MUST be tailored to be age-appropriate. The expression of a 'Powerhouse' at age 6 (playground politics) is different from age 16 (school projects, part-time jobs). Explicitly mention the age context where relevant.
+* **Age-Appropriate Context is CRITICAL**: All examples, scenarios, and advice provided in the report MUST be tailored to be age-appropriate. The expression of a 'Powerhouse' at age 6 (playground politics) is different from age 16 (school projects, part-time jobs). Explicitly mention the age context where relevant.
+* **Gender Context Guidance:** Use the provided gender to select appropriate pronouns (e.g., 他/她). The core analysis, advice, and recommendations MUST remain gender-neutral as numerological archetypes are universal. AVOID gender stereotypes in activities, careers, and personality descriptions. You may use the gender to inform culturally relevant, non-stereotypical examples of how an archetype might be expressed.
+
+When recommending activities in 'chapter4_ignitingPassions', ensure you provide a **diverse list** of options that align with the child's core numerological energies to give the parent a broad range of ideas.
 
 Empowering, Not Fatalistic: Focus on potential, lessons, and guidance. Avoid absolute statements about the future.
 
@@ -326,7 +353,7 @@ The entire report must be internally consistent.
 `
         },
         contents: {
-            text: `You will utilize the numerology data given below containing all the necessary calculated numbers and information to generate the report:
+            text: `You will utilize the numerology data given below containing all the necessary calculated numbers and information about the parent's child to generate the report:
 
 {
     "mainPersonalityNumber": ${personality},
@@ -346,7 +373,9 @@ The entire report must be internally consistent.
       }
     },
     "personalYear": ${personalYear},
-}`
+}
+    
+Moreover, the parent's child is ${age} year old and is ${gender}. Tailor your output based on this information.`
         }
 
     }); 
@@ -445,13 +474,13 @@ export class NumerologyCalculator {
      * Main function to start the calculation process.
      * REMOVED: This will no longer prompt for input. It will take the date as an argument.
      */
-    calculate(birthday) { // Changed to accept birthday string
+    calculate(birthday, gender = null) { // Changed to accept birthday string and optional gender
         if (birthday && birthday.length === 10) {
             const bdinfo = birthday.split('-');
             const [yearStr, monthStr, dayStr] = bdinfo;
 
             if (yearStr.length === 4 && monthStr.length === 2 && dayStr.length === 2 && parseInt(monthStr, 10) <= 12 && parseInt(dayStr, 10) <= 31) {
-                const results = this.processNumbers(yearStr, monthStr, dayStr);
+                const results = this.processNumbers(yearStr, monthStr, dayStr, gender);
                 return results; // Return the results for further processing
             } else {
                 throw new Error('日期格式不正确，请确保为 YYYY-MM-DD 格式且日期有效。');
@@ -466,9 +495,10 @@ export class NumerologyCalculator {
      * @param {string} yearStr
      * @param {string} monthStr
      * @param {string} dayStr
+     * @param {string} gender - Optional gender parameter
      * @returns {object} A structured object containing all calculated numbers.
      */
-    processNumbers(yearStr, monthStr, dayStr) {
+    processNumbers(yearStr, monthStr, dayStr, gender = null) {
         // --- Legacy Number Calculations (as per original logic) ---
         const A = parseInt(dayStr[0], 10);
         const B = parseInt(dayStr[1], 10);
@@ -557,7 +587,8 @@ export class NumerologyCalculator {
                 main: mainChallenge,
                 current: currentChallenge
             },
-            personalYear: personalYearNumber
+            personalYear: personalYearNumber,
+            gender: gender
         };
 
         return results;

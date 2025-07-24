@@ -43,8 +43,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     generateBtn.addEventListener('click', async () => {
         const birthday = birthdayInput.value;
+        const genderRadio = document.querySelector('input[name="gender"]:checked');
+        const gender = genderRadio ? genderRadio.value : null;
+        
         if (!birthday) {
             showError('请输入一个有效的出生日期。');
+            return;
+        }
+        
+        if (!gender) {
+            showError('请选择性别。');
             return;
         }
 
@@ -62,7 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ birthday }),
+                body: JSON.stringify({ birthday, gender }),
             });
 
             const data = await response.json();
@@ -97,8 +105,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Hide the save buttons
         generateAgainBtn.style.display = 'none';
         saveImageBtn.style.display = 'none';
-
-        // Show the initial form
+        
+        // Reset form inputs
+        birthdayInput.value = '2018-05-15';
+        const genderRadios = document.querySelectorAll('input[name="gender"]');
+        genderRadios.forEach(radio => radio.checked = false);
+        
+        // Show the input section again
         inputSection.style.display = 'flex';
 
         // Scroll to the top of the page smoothly
