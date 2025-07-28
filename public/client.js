@@ -506,22 +506,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (shareCapabilities.hasWebShare && shareCapabilities.canShareFiles) {
                     try {
-                        // Generate PDF-like content as HTML and convert to blob
-                        const pdfContent = await generateMobilePDFContent();
-                        const pdfBlob = new Blob([pdfContent], { type: 'text/html' });
-                        
-                        // Try to share as HTML file (which can be printed to PDF on mobile)
-                        const htmlFile = new File([pdfBlob], filename.replace('.pdf', '.html'), { type: 'text/html' });
-                        
-                        const shareData = {
-                            files: [htmlFile],
-                            title: '儿童命理报告 - PDF版本',
-                            text: '我的孩子的数字命理与发展指南报告（可打印为PDF）'
-                        };
+                        // For iPhone, try to generate a static HTML with embedded chart image
+                        if (/iPhone/.test(navigator.userAgent)) {
+                            console.log('iPhone detected, generating static PDF content...');
+                            const staticPdfContent = await generateStaticMobilePDFContent();
+                            const pdfBlob = new Blob([staticPdfContent], { type: 'text/html' });
+                            const htmlFile = new File([pdfBlob], filename.replace('.pdf', '.html'), { type: 'text/html' });
+                            
+                            const shareData = {
+                                files: [htmlFile],
+                                title: '儿童命理报告 - PDF版本',
+                                text: '我的孩子的数字命理与发展指南报告（iPhone优化版）'
+                            };
 
-                        await navigator.share(shareData);
-                        alert('报告分享成功！📱✨\n\n📄 如需保存为PDF：\n1️⃣ 在分享的文件中选择"打印"\n2️⃣ 选择"保存为PDF"\n3️⃣ 保存到您的设备');
-                        return;
+                            await navigator.share(shareData);
+                            alert('报告分享成功！📱✨\n\n📄 iPhone用户操作：\n1️⃣ 打开分享的文件\n2️⃣ 点击分享按钮\n3️⃣ 选择"打印"\n4️⃣ 选择"保存为PDF"\n\n💡 此版本已针对iPhone优化，图表将正常显示');
+                            return;
+                        } else {
+                            // For Android and other devices, use the original method
+                            console.log('Android/Other device detected, using dynamic PDF content...');
+                            const pdfContent = await generateMobilePDFContent();
+                            const pdfBlob = new Blob([pdfContent], { type: 'text/html' });
+                            const htmlFile = new File([pdfBlob], filename.replace('.pdf', '.html'), { type: 'text/html' });
+                            
+                            const shareData = {
+                                files: [htmlFile],
+                                title: '儿童命理报告 - PDF版本',
+                                text: '我的孩子的数字命理与发展指南报告（可打印为PDF）'
+                            };
+
+                            await navigator.share(shareData);
+                            alert('报告分享成功！📱✨\n\n📄 如需保存为PDF：\n1️⃣ 在分享的文件中选择"打印"\n2️⃣ 选择"保存为PDF"\n3️⃣ 保存到您的设备');
+                            return;
+                        }
                         
                     } catch (shareError) {
                         console.log('Mobile share failed, falling back to traditional method:', shareError);
@@ -530,7 +547,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Mobile fallback: Use a simplified print approach
                 try {
-                    await generateMobilePDF();
+                    if (/iPhone/.test(navigator.userAgent)) {
+                        await generateStaticMobilePDF();
+                    } else {
+                        await generateMobilePDF();
+                    }
                     return;
                 } catch (mobileError) {
                     console.log('Mobile PDF generation failed, trying desktop method:', mobileError);
@@ -792,6 +813,155 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    // iPhone-specific static PDF generation
+    async function generateStaticMobilePDFContent() {
+        console.log('Generating static PDF content for iPhone...');
+        
+        // Wait for charts to be fully rendered
+        const charts = reportContainer.querySelectorAll('canvas');
+        if (charts.length > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Get chart as image data
+        let chartImageData = null;
+        const polygonCanvas = document.getElementById('polygonChartCanvas');
+        if (polygonCanvas) {
+            try {
+                // Convert canvas to base64 image
+                chartImageData = polygonCanvas.toDataURL('image/png', 1.0);
+                console.log('Chart image data generated for iPhone PDF');
+            } catch (e) {
+                console.error('Failed to generate chart image for iPhone PDF:', e);
+            }
+        }
+
+        // Get the report content and replace canvas with image
+        let reportContent = reportContainer.innerHTML;
+        
+        if (chartImageData) {
+            // Replace canvas with img tag
+            reportContent = reportContent.replace(
+                /<canvas[^>]*id="polygonChartCanvas"[^>]*><\/canvas>/g,
+                `<img src="${chartImageData}" alt="性格蓝图雷达图" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">`
+            );
+        }
+
+        // Create iPhone-optimized HTML for PDF
+        const iPhoneHTML = `
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>儿童命理报告 - iPhone版</title>
+                <style>
+                    @page {
+                        margin: 10mm;
+                        size: A4 portrait;
+                    }
+                    body {
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', 'SimHei', Arial, sans-serif;
+                        line-height: 1.5;
+                        color: #333;
+                        background: white;
+                        margin: 0;
+                        padding: 10px;
+                        font-size: 14px;
+                        -webkit-text-size-adjust: 100%;
+                    }
+                    .report-container {
+                        max-width: none;
+                        padding: 0;
+                        margin: 0;
+                    }
+                    h1 { font-size: 1.8em; color: #4A90E2; text-align: center; }
+                    h2 { font-size: 1.4em; color: #4A90E2; margin: 20px 0 10px 0; }
+                    h3 { font-size: 1.2em; color: #667eea; }
+                    .core-data-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 8px;
+                        margin: 15px 0;
+                    }
+                    .data-card {
+                        border: 1px solid #e8eaf6;
+                        border-radius: 8px;
+                        padding: 10px;
+                        text-align: center;
+                        background: #f8f9ff;
+                    }
+                    .data-card .label {
+                        font-size: 0.8em;
+                        color: #666;
+                        margin-bottom: 3px;
+                    }
+                    .data-card .value {
+                        font-size: 1.3em;
+                        font-weight: bold;
+                        color: #4A90E2;
+                    }
+                    .chart-container {
+                        text-align: center;
+                        margin: 15px 0;
+                        page-break-inside: avoid;
+                    }
+                    .chart-container img {
+                        max-width: 100%;
+                        height: auto;
+                        border: 1px solid #e8eaf6;
+                        border-radius: 8px;
+                        padding: 10px;
+                        background: white;
+                    }
+                    .content-breakdown {
+                        margin: 15px 0;
+                        page-break-inside: avoid;
+                    }
+                    .breakdown-title {
+                        font-size: 1.1em;
+                        font-weight: bold;
+                        color: #4A90E2;
+                        margin: 12px 0 8px 0;
+                    }
+                    .breakdown-subtitle {
+                        font-size: 1em;
+                        font-weight: bold;
+                        color: #667eea;
+                        margin: 8px 0 5px 0;
+                    }
+                    .comm-instead { color: #e74c3c; font-weight: bold; }
+                    .comm-try { color: #27ae60; font-weight: bold; }
+                    .comm-why { color: #8e44ad; font-weight: bold; }
+                    ul, ol { padding-left: 15px; }
+                    li { margin-bottom: 3px; font-size: 0.9em; }
+                    .report-section { 
+                        margin: 20px 0; 
+                        page-break-inside: avoid;
+                        border-bottom: 1px solid #eee;
+                        padding-bottom: 15px;
+                    }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; }
+                        .no-print { display: none; }
+                        h1, h2, h3 { page-break-after: avoid; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="report-container">
+                    ${reportContent}
+                </div>
+                <div style="text-align: center; margin-top: 30px; color: #666; font-size: 0.8em;">
+                    <p>📱 iPhone优化版本 | 数字命理与发展指南</p>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        return iPhoneHTML;
+    }
 
     // Mobile PDF generation helper functions
     async function generateMobilePDFContent() {
@@ -1078,6 +1248,66 @@ document.addEventListener('DOMContentLoaded', () => {
                 alert('报告已在新窗口中打开！📱\n\n📄 保存为PDF步骤：\n1️⃣ 在新窗口中点击菜单（⋮）\n2️⃣ 选择"打印"或"分享"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置');
             } else {
                 throw new Error('无法打开新窗口，请允许弹窗或尝试其他方法');
+            }
+        }
+    }
+
+    async function generateStaticMobilePDF() {
+        console.log('Generating static mobile PDF using iPhone-optimized method...');
+        
+        // Create iPhone-optimized print content
+        const printContent = await generateStaticMobilePDFContent();
+        
+        // Check if it's iPad (iPad has larger screen and different behavior)
+        const isIPadDevice = isIPad();
+        
+        if (isIPadDevice) {
+            console.log('iPad detected with iPhone method, using blob URL approach');
+            
+            // For iPad, try blob URL approach
+            const blob = new Blob([printContent], { type: 'text/html' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            let printWindow = window.open(blobUrl, '_blank');
+            
+            if (printWindow) {
+                console.log('iPad: Static content blob URL approach successful');
+                
+                setTimeout(() => {
+                    try {
+                        printWindow.print();
+                    } catch (e) {
+                        console.log('Auto-print failed on iPad:', e);
+                    }
+                }, 2000);
+                
+                alert('报告已在新窗口中打开！📱\n\n📄 iPad保存为PDF步骤：\n1️⃣ 在新窗口中点击分享按钮（□）\n2️⃣ 选择"打印"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置\n\n💡 此版本已针对iPhone/iPad优化，图表将正常显示');
+                
+                // Clean up blob URL after a delay
+                setTimeout(() => {
+                    URL.revokeObjectURL(blobUrl);
+                }, 10000);
+            } else {
+                throw new Error('iPad无法打开新窗口，请尝试使用"保存为图片"功能');
+            }
+        } else {
+            // For iPhone, use data URL approach with static content
+            const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(printContent);
+            
+            const printWindow = window.open(dataUrl, '_blank');
+            
+            if (printWindow) {
+                setTimeout(() => {
+                    try {
+                        printWindow.print();
+                    } catch (e) {
+                        console.log('Auto-print failed on iPhone:', e);
+                    }
+                }, 2000);
+                
+                alert('报告已在新窗口中打开！📱\n\n📄 iPhone保存为PDF步骤：\n1️⃣ 在新窗口中点击分享按钮\n2️⃣ 选择"打印"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置\n\n💡 此版本已针对iPhone优化，图表将正常显示');
+            } else {
+                throw new Error('iPhone无法打开新窗口，请尝试使用"保存为图片"功能');
             }
         }
     }
