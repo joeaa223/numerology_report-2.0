@@ -110,11 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             saveImageBtn.textContent = '保存图片';
         }
-        // Update PDF button text for mobile
-        savePdfBtn.textContent = '保存PDF';
     } else {
         saveImageBtn.textContent = '保存为图片';
-        savePdfBtn.textContent = '保存为PDF';
     }
     
     // Set date range: from 90 years ago to today
@@ -406,42 +403,105 @@ document.addEventListener('DOMContentLoaded', () => {
         // Check if mobile device
         const isMobile = isMobileDevice();
         
-        if (isMobile) {
-            // For mobile devices, show instructions and try alternative approaches
-            const mobileChoice = confirm(
-                '📱 移动端PDF生成选项\n\n' +
-                '选择"确定"：尝试直接生成PDF（推荐）\n' +
-                '选择"取消"：生成图片版本作为替代\n\n' +
-                '💡 提示：某些移动浏览器的PDF功能可能受限'
-            );
-            
-            if (!mobileChoice) {
-                // User chose image version
+        try {
+            if (isMobile) {
+                // Mobile PDF generation using jsPDF
+                await handleMobilePDFGeneration(reportContainer, filename);
+            } else {
+                // Desktop PDF generation using print dialog
+                await handleDesktopPDFGeneration(reportContainer, filename);
+            }
+        } catch (error) {
+            console.error('PDF generation failed:', error);
+            if (isMobile) {
+                // Fallback to image for mobile
+                alert('PDF生成遇到问题，正在为您生成图片版本...');
                 try {
                     await generateReportImage(filename.replace('.pdf', '.png'));
-                    alert('📱 图片版本已生成！\n\n您可以：\n• 保存到相册\n• 打印图片\n• 分享给他人');
-                } catch (error) {
-                    alert('图片生成失败，请稍后重试。');
+                    alert('📱 已为您生成图片版本！\n\n💡 移动端提示：\n• 图片已保存到下载文件夹\n• 您可以通过分享功能保存到相册\n• 或直接打印图片');
+                } catch (imgError) {
+                    alert('PDF和图片生成都失败了，请稍后重试。');
                 }
-                savePdfBtn.disabled = false;
-                savePdfBtn.textContent = '保存为PDF';
-                return;
+            } else {
+                alert(`PDF生成失败：${error.message}\n\n🔧 替代方案：\n1️⃣ 使用浏览器菜单：文件 → 打印 → 保存为PDF\n2️⃣ 按快捷键：Ctrl+P (Windows) 或 Cmd+P (Mac)\n3️⃣ 使用"保存为图片"功能作为备选`);
             }
+        } finally {
+            // Reset button state
+            savePdfBtn.disabled = false;
+            savePdfBtn.textContent = '保存为PDF';
         }
+    });
 
+    // Handle mobile PDF generation
+    async function handleMobilePDFGeneration(reportContainer, filename) {
         try {
-            // Create a print-friendly version
-            const printWindow = window.open('', '_blank');
-            if (!printWindow) {
-                if (isMobile) {
-                    alert('📱 移动端提示：\n\n弹窗被阻止。请：\n1️⃣ 允许此网站的弹窗\n2️⃣ 或使用"保存为图片"功能\n3️⃣ 或在浏览器菜单中选择"打印"');
-                } else {
-                    throw new Error('弹窗被阻止，请允许弹窗后重试');
+            // Generate PDF blob using jsPDF
+            const pdfBlob = await generatePDFBlob(reportContainer);
+            
+            // Try Web Share API first (if available)
+            if (navigator.share && 'canShare' in navigator) {
+                try {
+                    const file = new File([pdfBlob], filename, { type: 'application/pdf' });
+                    const shareData = {
+                        files: [file],
+                        title: '儿童命理报告',
+                        text: '我的孩子的数字命理与发展指南报告'
+                    };
+
+                    if (navigator.canShare && navigator.canShare(shareData)) {
+                        await navigator.share(shareData);
+                        alert('📱 PDF分享成功！您可以选择保存到文件或分享给他人。');
+                        return;
+                    }
+                } catch (shareError) {
+                    console.log('Mobile PDF share failed, trying download:', shareError);
                 }
-                savePdfBtn.disabled = false;
-                savePdfBtn.textContent = '保存为PDF';
-                return;
             }
+            
+            // Fallback: Direct download
+            const url = URL.createObjectURL(pdfBlob);
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = url;
+            link.style.display = 'none';
+            
+            // Add mobile-specific attributes
+            link.setAttribute('target', '_blank');
+            link.setAttribute('rel', 'noopener noreferrer');
+            
+            document.body.appendChild(link);
+            
+            // Show mobile-friendly instructions
+            const userConfirm = confirm('📱 移动端PDF下载\n\n点击"确定"开始下载PDF文件。\n\n💡 提示：\n• 文件将保存到下载文件夹\n• 某些浏览器可能需要您手动确认下载\n• 如果下载失败，建议使用"保存为图片"功能');
+            
+            if (userConfirm) {
+                link.click();
+                
+                // Give time for download to start
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    alert('📱 PDF下载已开始！\n\n请检查您的下载文件夹或通知栏。\n\n如果下载失败，请尝试使用"保存为图片"功能。');
+                }, 1000);
+            } else {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                throw new Error('用户取消下载');
+            }
+            
+        } catch (error) {
+            console.error('Mobile PDF generation failed:', error);
+            throw error;
+        }
+    }
+
+    // Handle desktop PDF generation  
+    async function handleDesktopPDFGeneration(reportContainer, filename) {
+        // Create a print-friendly version
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            throw new Error('弹窗被阻止，请允许弹窗后重试');
+        }
 
             // Wait for charts to be fully rendered
             const charts = reportContainer.querySelectorAll('canvas');
@@ -601,40 +661,14 @@ document.addEventListener('DOMContentLoaded', () => {
             printWindow.document.write(printHTML);
             printWindow.document.close();
 
-            // Success message with device-specific instructions
-            if (isMobile) {
-                alert('📱 PDF打印窗口已打开！\n\n📄 移动端操作步骤：\n1️⃣ 等待打印对话框出现\n2️⃣ 选择"保存为PDF"或"另存为PDF"\n3️⃣ 选择保存位置（通常是下载文件夹）\n4️⃣ 点击保存\n\n💡 提示：\n• 如果没有PDF选项，请选择"打印到文件"\n• 某些浏览器可能直接下载PDF\n• 如果遇到问题，请尝试"保存为图片"功能');
-            } else {
-                alert('PDF打印窗口已打开！\n\n📄 操作步骤：\n1️⃣ 在打印对话框中选择"保存为PDF"\n2️⃣ 选择保存位置\n3️⃣ 点击保存\n\n💡 如果没有自动弹出打印对话框，请手动按 Ctrl+P (Windows) 或 Cmd+P (Mac)');
-            }
+            // Success message
+            alert('PDF打印窗口已打开！\n\n📄 操作步骤：\n1️⃣ 在打印对话框中选择"保存为PDF"\n2️⃣ 选择保存位置\n3️⃣ 点击保存\n\n💡 如果没有自动弹出打印对话框，请手动按 Ctrl+P (Windows) 或 Cmd+P (Mac)');
 
         } catch (error) {
-            console.error('PDF generation failed:', error);
-            
-            if (isMobile) {
-                // Mobile-specific error handling
-                const mobileErrorMsg = `📱 移动端PDF生成遇到问题：${error.message}\n\n🔧 建议解决方案：\n1️⃣ 使用"保存为图片"功能（推荐）\n2️⃣ 在浏览器菜单中选择"打印"→"保存为PDF"\n3️⃣ 尝试在桌面浏览器中打开此页面\n\n💡 移动端浏览器的PDF功能可能受限`;
-                
-                const tryImageVersion = confirm(mobileErrorMsg + '\n\n是否现在生成图片版本？');
-                
-                if (tryImageVersion) {
-                    try {
-                        await generateReportImage(filename.replace('.pdf', '.png'));
-                        alert('📱 图片版本生成成功！\n\n您可以：\n• 保存到相册\n• 打印图片\n• 分享给他人');
-                    } catch (imgError) {
-                        alert('图片生成也失败了，请稍后重试或联系技术支持。');
-                    }
-                }
-            } else {
-                // Desktop error handling
-                alert(`PDF生成失败：${error.message}\n\n🔧 替代方案：\n1️⃣ 使用浏览器菜单：文件 → 打印 → 保存为PDF\n2️⃣ 按快捷键：Ctrl+P (Windows) 或 Cmd+P (Mac)\n3️⃣ 使用"保存为图片"功能作为备选`);
-            }
-        } finally {
-            // Reset button state
-            savePdfBtn.disabled = false;
-            savePdfBtn.textContent = '保存为PDF';
+            console.error('Desktop PDF generation failed:', error);
+            throw error;
         }
-    });
+    }
 
     // Fallback function for simple text-based image
     async function generateSimpleTextImage(birthDate, filename) {
@@ -1051,5 +1085,139 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderConclusion(conclusion) {
         if (!conclusion) return '';
         return createSection('✨ 报告结语', `<p>${conclusion}</p>`);
+    }
+
+    // Generate PDF blob for mobile devices
+    async function generatePDFBlob(reportContainer) {
+        // Load jsPDF library dynamically if not already loaded
+        if (typeof window.jsPDF === 'undefined') {
+            await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+        }
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        
+        // PDF dimensions
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 15;
+        const contentWidth = pageWidth - 2 * margin;
+        
+        let yPosition = margin;
+        
+        // Add title
+        pdf.setFontSize(20);
+        pdf.setTextColor(74, 144, 226);
+        pdf.text('儿童数字命理与发展指南', margin, yPosition);
+        yPosition += 15;
+        
+        // Add date
+        const birthDate = document.getElementById('birthday-input').value;
+        pdf.setFontSize(12);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(`生成日期: ${new Date().toLocaleDateString('zh-CN')} | 出生日期: ${birthDate}`, margin, yPosition);
+        yPosition += 20;
+        
+        // Get all sections
+        const sections = reportContainer.querySelectorAll('.report-section, h2, .core-data-grid');
+        
+        for (let section of sections) {
+            // Check if we need a new page
+            if (yPosition > pageHeight - 30) {
+                pdf.addPage();
+                yPosition = margin;
+            }
+            
+            if (section.tagName === 'H2') {
+                // Section header
+                pdf.setFontSize(16);
+                pdf.setTextColor(74, 144, 226);
+                const title = section.textContent.trim();
+                pdf.text(title, margin, yPosition);
+                yPosition += 12;
+                
+            } else if (section.classList.contains('core-data-grid')) {
+                // Core data cards
+                const cards = section.querySelectorAll('.data-card');
+                let cardX = margin;
+                const cardWidth = (contentWidth - 20) / 3; // 3 cards per row
+                
+                pdf.setFontSize(10);
+                cards.forEach((card, index) => {
+                    if (index > 0 && index % 3 === 0) {
+                        yPosition += 25;
+                        cardX = margin;
+                    }
+                    
+                    const label = card.querySelector('.label')?.textContent || '';
+                    const value = card.querySelector('.value')?.textContent || '';
+                    
+                    // Draw card border
+                    pdf.setDrawColor(232, 234, 246);
+                    pdf.rect(cardX, yPosition - 5, cardWidth, 20);
+                    
+                    // Add label and value
+                    pdf.setTextColor(100, 100, 100);
+                    pdf.text(label, cardX + 2, yPosition);
+                    pdf.setTextColor(74, 144, 226);
+                    pdf.setFontSize(12);
+                    pdf.text(value, cardX + 2, yPosition + 8);
+                    pdf.setFontSize(10);
+                    
+                    cardX += cardWidth + 10;
+                });
+                yPosition += 30;
+                
+            } else {
+                // Regular content section
+                const textContent = section.textContent.trim();
+                if (textContent) {
+                    pdf.setFontSize(10);
+                    pdf.setTextColor(51, 51, 51);
+                    
+                    // Split long text into lines
+                    const lines = pdf.splitTextToSize(textContent, contentWidth);
+                    
+                    // Check if content fits on current page
+                    const contentHeight = lines.length * 5;
+                    if (yPosition + contentHeight > pageHeight - margin) {
+                        pdf.addPage();
+                        yPosition = margin;
+                    }
+                    
+                    // Add text
+                    pdf.text(lines, margin, yPosition);
+                    yPosition += contentHeight + 10;
+                }
+            }
+        }
+        
+        // Add chart if exists
+        const canvas = reportContainer.querySelector('canvas');
+        if (canvas) {
+            try {
+                const imgData = canvas.toDataURL('image/png');
+                pdf.addPage();
+                pdf.setFontSize(16);
+                pdf.setTextColor(74, 144, 226);
+                pdf.text('性格蓝图雷达图', margin, margin);
+                pdf.addImage(imgData, 'PNG', margin, margin + 15, contentWidth * 0.8, contentWidth * 0.6);
+            } catch (e) {
+                console.log('Chart could not be added to PDF:', e);
+            }
+        }
+        
+        return pdf.output('blob');
+    }
+    
+    // Load external script dynamically
+    function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
     }
 });
