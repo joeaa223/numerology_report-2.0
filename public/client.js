@@ -110,11 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             saveImageBtn.textContent = '保存图片';
         }
-        // Update PDF button text for mobile
-        savePdfBtn.textContent = '保存PDF';
     } else {
         saveImageBtn.textContent = '保存为图片';
-        savePdfBtn.textContent = '保存为PDF';
     }
     
     // Set date range: from 90 years ago to today
@@ -174,6 +171,15 @@ document.addEventListener('DOMContentLoaded', () => {
             generateAgainBtn.style.display = 'block';
             savePdfBtn.style.display = 'block';
             saveImageBtn.style.display = 'block';
+
+            // Update button text based on device
+            if (isMobileDevice()) {
+                saveImageBtn.textContent = getShareCapabilities().canShareFiles ? '分享/保存图片' : '保存图片';
+                savePdfBtn.textContent = '分享/保存PDF';
+            } else {
+                saveImageBtn.textContent = '保存为图片';
+                savePdfBtn.textContent = '保存为PDF';
+            }
 
 
         } catch (error) {
@@ -389,7 +395,11 @@ document.addEventListener('DOMContentLoaded', () => {
     savePdfBtn.addEventListener('click', async () => {
         // Show loading state
         savePdfBtn.disabled = true;
-        savePdfBtn.textContent = '正在生成PDF...';
+        if (isMobileDevice()) {
+            savePdfBtn.textContent = '正在准备分享...';
+        } else {
+            savePdfBtn.textContent = '正在生成PDF...';
+        }
 
         // Get the birth date for filename
         const birthDate = birthdayInput.value;
@@ -403,44 +413,56 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Check if mobile device
-        const isMobile = isMobileDevice();
-        
-        if (isMobile) {
-            // For mobile devices, show instructions and try alternative approaches
-            const mobileChoice = confirm(
-                '📱 移动端PDF生成选项\n\n' +
-                '选择"确定"：尝试直接生成PDF（推荐）\n' +
-                '选择"取消"：生成图片版本作为替代\n\n' +
-                '💡 提示：某些移动浏览器的PDF功能可能受限'
-            );
-            
-            if (!mobileChoice) {
-                // User chose image version
-                try {
-                    await generateReportImage(filename.replace('.pdf', '.png'));
-                    alert('📱 图片版本已生成！\n\n您可以：\n• 保存到相册\n• 打印图片\n• 分享给他人');
-                } catch (error) {
-                    alert('图片生成失败，请稍后重试。');
-                }
-                savePdfBtn.disabled = false;
-                savePdfBtn.textContent = '保存为PDF';
-                return;
-            }
-        }
-
         try {
-            // Create a print-friendly version
+            // For mobile devices, try a different approach
+            if (isMobileDevice()) {
+                console.log('Mobile device detected, using mobile-friendly PDF approach');
+                
+                // Check Web Share API capabilities for PDF
+                const shareCapabilities = getShareCapabilities();
+                
+                if (shareCapabilities.hasWebShare && shareCapabilities.canShareFiles) {
+                    try {
+                        // Generate PDF-like content as HTML and convert to blob
+                        const pdfContent = await generateMobilePDFContent();
+                        const pdfBlob = new Blob([pdfContent], { type: 'text/html' });
+                        
+                        // Try to share as HTML file (which can be printed to PDF on mobile)
+                        const htmlFile = new File([pdfBlob], filename.replace('.pdf', '.html'), { type: 'text/html' });
+                        
+                        const shareData = {
+                            files: [htmlFile],
+                            title: '儿童命理报告 - PDF版本',
+                            text: '我的孩子的数字命理与发展指南报告（可打印为PDF）'
+                        };
+
+                        await navigator.share(shareData);
+                        alert('报告分享成功！📱✨\n\n📄 如需保存为PDF：\n1️⃣ 在分享的文件中选择"打印"\n2️⃣ 选择"保存为PDF"\n3️⃣ 保存到您的设备');
+                        return;
+                        
+                    } catch (shareError) {
+                        console.log('Mobile share failed, falling back to traditional method:', shareError);
+                    }
+                }
+                
+                // Mobile fallback: Use a simplified print approach
+                try {
+                    await generateMobilePDF();
+                    return;
+                } catch (mobileError) {
+                    console.log('Mobile PDF generation failed, trying desktop method:', mobileError);
+                    // Fall through to desktop method
+                }
+            }
+            
+            // Desktop method or mobile fallback
             const printWindow = window.open('', '_blank');
             if (!printWindow) {
-                if (isMobile) {
-                    alert('📱 移动端提示：\n\n弹窗被阻止。请：\n1️⃣ 允许此网站的弹窗\n2️⃣ 或使用"保存为图片"功能\n3️⃣ 或在浏览器菜单中选择"打印"');
+                if (isMobileDevice()) {
+                    throw new Error('无法打开打印窗口。请尝试使用"保存为图片"功能作为替代。');
                 } else {
                     throw new Error('弹窗被阻止，请允许弹窗后重试');
                 }
-                savePdfBtn.disabled = false;
-                savePdfBtn.textContent = '保存为PDF';
-                return;
             }
 
             // Wait for charts to be fully rendered
@@ -601,40 +623,179 @@ document.addEventListener('DOMContentLoaded', () => {
             printWindow.document.write(printHTML);
             printWindow.document.close();
 
-            // Success message with device-specific instructions
-            if (isMobile) {
-                alert('📱 PDF打印窗口已打开！\n\n📄 移动端操作步骤：\n1️⃣ 等待打印对话框出现\n2️⃣ 选择"保存为PDF"或"另存为PDF"\n3️⃣ 选择保存位置（通常是下载文件夹）\n4️⃣ 点击保存\n\n💡 提示：\n• 如果没有PDF选项，请选择"打印到文件"\n• 某些浏览器可能直接下载PDF\n• 如果遇到问题，请尝试"保存为图片"功能');
+            // Success message
+            if (isMobileDevice()) {
+                alert('PDF打印窗口已打开！📱\n\n📄 操作步骤：\n1️⃣ 在打印对话框中选择"保存为PDF"\n2️⃣ 选择保存位置\n3️⃣ 点击保存\n\n💡 如果无法保存PDF，建议使用"保存为图片"功能');
             } else {
                 alert('PDF打印窗口已打开！\n\n📄 操作步骤：\n1️⃣ 在打印对话框中选择"保存为PDF"\n2️⃣ 选择保存位置\n3️⃣ 点击保存\n\n💡 如果没有自动弹出打印对话框，请手动按 Ctrl+P (Windows) 或 Cmd+P (Mac)');
             }
 
         } catch (error) {
             console.error('PDF generation failed:', error);
-            
-            if (isMobile) {
-                // Mobile-specific error handling
-                const mobileErrorMsg = `📱 移动端PDF生成遇到问题：${error.message}\n\n🔧 建议解决方案：\n1️⃣ 使用"保存为图片"功能（推荐）\n2️⃣ 在浏览器菜单中选择"打印"→"保存为PDF"\n3️⃣ 尝试在桌面浏览器中打开此页面\n\n💡 移动端浏览器的PDF功能可能受限`;
-                
-                const tryImageVersion = confirm(mobileErrorMsg + '\n\n是否现在生成图片版本？');
-                
-                if (tryImageVersion) {
-                    try {
-                        await generateReportImage(filename.replace('.pdf', '.png'));
-                        alert('📱 图片版本生成成功！\n\n您可以：\n• 保存到相册\n• 打印图片\n• 分享给他人');
-                    } catch (imgError) {
-                        alert('图片生成也失败了，请稍后重试或联系技术支持。');
-                    }
-                }
+            if (isMobileDevice()) {
+                alert(`PDF生成失败：${error.message}\n\n🔧 移动端替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF`);
             } else {
-                // Desktop error handling
                 alert(`PDF生成失败：${error.message}\n\n🔧 替代方案：\n1️⃣ 使用浏览器菜单：文件 → 打印 → 保存为PDF\n2️⃣ 按快捷键：Ctrl+P (Windows) 或 Cmd+P (Mac)\n3️⃣ 使用"保存为图片"功能作为备选`);
             }
         } finally {
             // Reset button state
             savePdfBtn.disabled = false;
-            savePdfBtn.textContent = '保存为PDF';
+            if (isMobileDevice()) {
+                savePdfBtn.textContent = '分享/保存PDF';
+            } else {
+                savePdfBtn.textContent = '保存为PDF';
+            }
         }
     });
+
+    // Mobile PDF generation helper functions
+    async function generateMobilePDFContent() {
+        // Wait for charts to be fully rendered
+        const charts = reportContainer.querySelectorAll('canvas');
+        if (charts.length > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Get the report content
+        const reportContent = reportContainer.innerHTML;
+        
+        // Create mobile-optimized HTML for PDF
+        const mobileHTML = `
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>儿童命理报告</title>
+                <style>
+                    @page {
+                        margin: 10mm;
+                        size: A4 portrait;
+                    }
+                    body {
+                        font-family: 'Microsoft YaHei', 'SimHei', Arial, sans-serif;
+                        line-height: 1.5;
+                        color: #333;
+                        background: white;
+                        margin: 0;
+                        padding: 10px;
+                        font-size: 14px;
+                    }
+                    .report-container {
+                        max-width: none;
+                        padding: 0;
+                        margin: 0;
+                    }
+                    h1 { font-size: 1.8em; color: #4A90E2; text-align: center; }
+                    h2 { font-size: 1.4em; color: #4A90E2; margin: 20px 0 10px 0; }
+                    h3 { font-size: 1.2em; color: #667eea; }
+                    .core-data-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 8px;
+                        margin: 15px 0;
+                    }
+                    .data-card {
+                        border: 1px solid #e8eaf6;
+                        border-radius: 8px;
+                        padding: 10px;
+                        text-align: center;
+                        background: #f8f9ff;
+                    }
+                    .data-card .label {
+                        font-size: 0.8em;
+                        color: #666;
+                        margin-bottom: 3px;
+                    }
+                    .data-card .value {
+                        font-size: 1.3em;
+                        font-weight: bold;
+                        color: #4A90E2;
+                    }
+                    .chart-container {
+                        text-align: center;
+                        margin: 15px 0;
+                        page-break-inside: avoid;
+                    }
+                    .chart-container canvas {
+                        max-width: 100%;
+                        height: auto;
+                    }
+                    .content-breakdown {
+                        margin: 15px 0;
+                        page-break-inside: avoid;
+                    }
+                    .breakdown-title {
+                        font-size: 1.1em;
+                        font-weight: bold;
+                        color: #4A90E2;
+                        margin: 12px 0 8px 0;
+                    }
+                    .breakdown-subtitle {
+                        font-size: 1em;
+                        font-weight: bold;
+                        color: #667eea;
+                        margin: 8px 0 5px 0;
+                    }
+                    .comm-instead { color: #e74c3c; font-weight: bold; }
+                    .comm-try { color: #27ae60; font-weight: bold; }
+                    .comm-why { color: #8e44ad; font-weight: bold; }
+                    ul, ol { padding-left: 15px; }
+                    li { margin-bottom: 3px; font-size: 0.9em; }
+                    .report-section { 
+                        margin: 20px 0; 
+                        page-break-inside: avoid;
+                        border-bottom: 1px solid #eee;
+                        padding-bottom: 15px;
+                    }
+                    @media print {
+                        body { -webkit-print-color-adjust: exact; }
+                        .no-print { display: none; }
+                        h1, h2, h3 { page-break-after: avoid; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="report-container">
+                    ${reportContent}
+                </div>
+                <div style="text-align: center; margin-top: 30px; color: #666; font-size: 0.8em;">
+                    <p>📱 移动端生成 | 数字命理与发展指南</p>
+                </div>
+            </body>
+            </html>
+        `;
+        
+        return mobileHTML;
+    }
+
+    async function generateMobilePDF() {
+        console.log('Generating mobile PDF using simplified print method...');
+        
+        // Create a simplified print window for mobile
+        const printContent = await generateMobilePDFContent();
+        
+        // Try to use data URL approach for mobile
+        const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(printContent);
+        
+        // Open in new window/tab
+        const printWindow = window.open(dataUrl, '_blank');
+        
+        if (printWindow) {
+            // Give it time to load, then try to trigger print
+            setTimeout(() => {
+                try {
+                    printWindow.print();
+                } catch (e) {
+                    console.log('Auto-print failed on mobile:', e);
+                }
+            }, 2000);
+            
+            alert('报告已在新窗口中打开！📱\n\n📄 保存为PDF步骤：\n1️⃣ 在新窗口中点击菜单（⋮）\n2️⃣ 选择"打印"或"分享"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置');
+        } else {
+            throw new Error('无法打开新窗口，请允许弹窗或尝试其他方法');
+        }
+    }
 
     // Fallback function for simple text-based image
     async function generateSimpleTextImage(birthDate, filename) {
