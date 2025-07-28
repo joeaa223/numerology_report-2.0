@@ -360,7 +360,7 @@ footer {
     margin-bottom: 20px;
 }
 
-#generate-again-btn, #save-image-btn {
+#generate-again-btn, #save-pdf-btn, #save-image-btn {
     padding: 15px 30px;
     font-size: 1.1em;
     font-weight: bold;
@@ -391,6 +391,17 @@ footer {
     background: #229954;
     transform: translateY(-3px);
     box-shadow: 0 6px 20px rgba(39, 174, 96, 0.5);
+}
+
+#save-pdf-btn {
+    background: #f39c12;
+    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+}
+
+#save-pdf-btn:hover {
+    background: #e67e22;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(243, 156, 18, 0.5);
 }
 
 
@@ -481,7 +492,7 @@ footer {
         flex-direction: column;
         align-items: stretch;
     }
-    #generate-again-btn, #save-image-btn {
+    #generate-again-btn, #save-pdf-btn, #save-image-btn {
         margin-bottom: 10px;
     }
 }

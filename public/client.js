@@ -71,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const birthdayInput = document.getElementById('birthday-input');
     const generateBtn = document.getElementById('generate-btn');
     const generateAgainBtn = document.getElementById('generate-again-btn');
+    const savePdfBtn = document.getElementById('save-pdf-btn');
     const saveImageBtn = document.getElementById('save-image-btn');
     const loader = document.getElementById('loader');
     const errorMessage = document.getElementById('error-message');
@@ -168,6 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Hide initial form and show appropriate save buttons
             inputSection.style.display = 'none';
             generateAgainBtn.style.display = 'block';
+            savePdfBtn.style.display = 'block';
             saveImageBtn.style.display = 'block';
 
 
@@ -187,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Hide the save buttons
         generateAgainBtn.style.display = 'none';
+        savePdfBtn.style.display = 'none';
         saveImageBtn.style.display = 'none';
         
         // Reset form inputs
@@ -376,6 +379,202 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 saveImageBtn.textContent = '保存为图片';
             }
+        }
+    });
+
+    // PDF Download functionality
+    savePdfBtn.addEventListener('click', async () => {
+        // Show loading state
+        savePdfBtn.disabled = true;
+        savePdfBtn.textContent = '正在生成PDF...';
+
+        // Get the birth date for filename
+        const birthDate = birthdayInput.value;
+        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
+        
+        // Check if content exists
+        if (reportContainer.innerHTML.length < 100) {
+            alert('报告内容为空，请先生成报告');
+            savePdfBtn.disabled = false;
+            savePdfBtn.textContent = '保存为PDF';
+            return;
+        }
+
+        try {
+            // Create a print-friendly version
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                throw new Error('弹窗被阻止，请允许弹窗后重试');
+            }
+
+            // Wait for charts to be fully rendered
+            const charts = reportContainer.querySelectorAll('canvas');
+            if (charts.length > 0) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            // Get the report content
+            const reportContent = reportContainer.innerHTML;
+            
+            // Create print-optimized HTML
+            const printHTML = `
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <title>儿童命理报告</title>
+                    <style>
+                        @page {
+                            margin: 15mm;
+                            size: A4;
+                        }
+                        body {
+                            font-family: 'Microsoft YaHei', 'SimHei', Arial, sans-serif;
+                            line-height: 1.6;
+                            color: #333;
+                            background: white;
+                            margin: 0;
+                            padding: 0;
+                        }
+                        .report-container {
+                            max-width: none;
+                            padding: 0;
+                            margin: 0;
+                        }
+                        h1, h2, h3 {
+                            color: #4A90E2;
+                            page-break-after: avoid;
+                        }
+                        .core-data-grid {
+                            display: grid;
+                            grid-template-columns: repeat(3, 1fr);
+                            gap: 10px;
+                            margin: 20px 0;
+                        }
+                        .data-card {
+                            border: 2px solid #e8eaf6;
+                            border-radius: 10px;
+                            padding: 15px;
+                            text-align: center;
+                            background: white;
+                        }
+                        .data-card .label {
+                            font-size: 0.9em;
+                            color: #666;
+                            margin-bottom: 5px;
+                        }
+                        .data-card .value {
+                            font-size: 1.5em;
+                            font-weight: bold;
+                            color: #4A90E2;
+                        }
+                        .chart-container {
+                            text-align: center;
+                            margin: 20px 0;
+                            page-break-inside: avoid;
+                        }
+                        .chart-container canvas {
+                            max-width: 400px;
+                            max-height: 400px;
+                        }
+                        .content-breakdown {
+                            margin: 20px 0;
+                            page-break-inside: avoid;
+                        }
+                        .breakdown-title {
+                            font-size: 1.3em;
+                            font-weight: bold;
+                            color: #4A90E2;
+                            margin: 15px 0 10px 0;
+                        }
+                        .breakdown-subtitle {
+                            font-size: 1.1em;
+                            font-weight: bold;
+                            color: #667eea;
+                            margin: 10px 0 5px 0;
+                        }
+                        .comm-instead { color: #e74c3c; }
+                        .comm-try { color: #27ae60; }
+                        .comm-why { color: #8e44ad; }
+                        ul, ol {
+                            padding-left: 20px;
+                        }
+                        li {
+                            margin-bottom: 5px;
+                        }
+                        .report-section {
+                            margin: 25px 0;
+                            page-break-inside: avoid;
+                        }
+                        @media print {
+                            body { -webkit-print-color-adjust: exact; }
+                            .no-print { display: none; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="report-container">
+                        ${reportContent}
+                    </div>
+                    <script>
+                        // Re-render charts in the print window
+                        document.addEventListener('DOMContentLoaded', function() {
+                            // Wait a moment for content to load
+                            setTimeout(function() {
+                                // Get chart data from parent window
+                                const parentCharts = window.opener.document.querySelectorAll('canvas[data-chart-data]');
+                                const printCharts = document.querySelectorAll('canvas');
+                                
+                                if (parentCharts.length > 0 && printCharts.length > 0) {
+                                    parentCharts.forEach((parentChart, index) => {
+                                        if (printCharts[index] && parentChart.dataset.chartData) {
+                                            try {
+                                                const chartData = JSON.parse(parentChart.dataset.chartData);
+                                                // Re-render chart using Chart.js if available
+                                                if (typeof Chart !== 'undefined') {
+                                                    new Chart(printCharts[index], {
+                                                        type: 'radar',
+                                                        data: chartData.data,
+                                                        options: chartData.options
+                                                    });
+                                                }
+                                            } catch (e) {
+                                                console.log('Chart rendering failed:', e);
+                                            }
+                                        }
+                                    });
+                                }
+                                
+                                // Auto-trigger print dialog after a short delay
+                                setTimeout(function() {
+                                    window.print();
+                                    // Close the window after printing (optional)
+                                    setTimeout(function() {
+                                        window.close();
+                                    }, 1000);
+                                }, 500);
+                            }, 1000);
+                        });
+                    </script>
+                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                </body>
+                </html>
+            `;
+
+            // Write content to the new window
+            printWindow.document.write(printHTML);
+            printWindow.document.close();
+
+            // Success message
+            alert('PDF打印窗口已打开！\n\n📄 操作步骤：\n1️⃣ 在打印对话框中选择"保存为PDF"\n2️⃣ 选择保存位置\n3️⃣ 点击保存\n\n💡 如果没有自动弹出打印对话框，请手动按 Ctrl+P (Windows) 或 Cmd+P (Mac)');
+
+        } catch (error) {
+            console.error('PDF generation failed:', error);
+            alert(`PDF生成失败：${error.message}\n\n🔧 替代方案：\n1️⃣ 使用浏览器菜单：文件 → 打印 → 保存为PDF\n2️⃣ 按快捷键：Ctrl+P (Windows) 或 Cmd+P (Mac)\n3️⃣ 使用"保存为图片"功能作为备选`);
+        } finally {
+            // Reset button state
+            savePdfBtn.disabled = false;
+            savePdfBtn.textContent = '保存为PDF';
         }
     });
 
@@ -632,7 +831,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const isMobile = window.innerWidth <= 768;
 
-        new Chart(ctx, {
+        const chartConfig = {
             type: 'radar',
             data: {
                 labels: labels,
@@ -672,7 +871,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 plugins: {
                     legend: {
-                        display: false // Hide legend as it's self-explanatory
+                        display: false // Legend as it's self-explanatory
                     },
                     datalabels: {
                         color: '#ffffff',
@@ -685,7 +884,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
             }
-        });
+        };
+
+        // Create the chart
+        new Chart(ctx, chartConfig);
+        
+        // Store chart data for PDF generation
+        ctx.dataset.chartData = JSON.stringify(chartConfig);
     }
 
     function renderInnerWorld(chapter) {

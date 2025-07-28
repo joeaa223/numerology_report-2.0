@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>儿童命理与发展指南 - 演示页面</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* 演示页面特殊样式 */
+        .demo-notice {
+            background: linear-gradient(45deg, #4A90E2, #667eea);
+            color: white;
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .demo-section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 2px dashed #4A90E2;
+            border-radius: 15px;
+            background: rgba(74, 144, 226, 0.05);
+        }
+        
+        .demo-section h3 {
+            color: #4A90E2;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .demo-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 15px 0;
+        }
+        
+        .demo-btn {
+            padding: 8px 16px;
+            border: 2px solid #4A90E2;
+            background: white;
+            color: #4A90E2;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+        
+        .demo-btn:hover {
+            background: #4A90E2;
+            color: white;
+        }
+        
+        .demo-btn.active {
+            background: #4A90E2;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>数字命理与发展指南</h1>
+            <p>输入您孩子的出生日期，探索他/她的内在天赋与潜能。</p>
+        </header>
+        
+        <div class="demo-notice">
+            🎨 这是UI演示页面 - 展示所有界面状态和设计效果
+        </div>
+        
+        <!-- 演示1: 初始状态 -->
+        <div class="demo-section">
+            <h3>📝 初始状态 - 用户输入界面</h3>
+            <div class="input-section">
+                <div class="input-group">
+                    <label for="birthday-input">出生日期</label>
+                    <input type="date" id="birthday-input" required min="1934-01-01" max="2024-12-31" value="2018-05-15">
+                </div>
+                <div class="input-group">
+                    <label for="gender-input">性别</label>
+                    <div class="gender-selector">
+                        <input type="radio" id="gender-male" name="gender" value="Male" required>
+                        <label for="gender-male" class="gender-option">
+                            <span class="gender-icon">👦</span>
+                            <span class="gender-text">男孩</span>
+                        </label>
+                        <input type="radio" id="gender-female" name="gender" value="Female" required>
+                        <label for="gender-female" class="gender-option">
+                            <span class="gender-icon">👧</span>
+                            <span class="gender-text">女孩</span>
+                        </label>
+                    </div>
+                </div>
+                <button id="generate-btn">生成报告</button>
+            </div>
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="showLoadingState()">显示加载状态</button>
+                <button class="demo-btn" onclick="showReportState()">显示报告状态</button>
+            </div>
+        </div>
+        
+        <!-- 演示2: 加载状态 -->
+        <div class="demo-section" id="loading-demo" style="display: none;">
+            <h3>⏳ 加载状态 - 生成报告中</h3>
+            <div id="loader">
+                <div class="loader-progress-bar">
+                    <div class="loader-progress-inner" id="loader-progress-inner" style="width: 65%;"></div>
+                </div>
+                <div class="loader-message">正在生成报告，可能需要1-2分钟，请耐心等待…</div>
+            </div>
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="showInitialState()">返回初始状态</button>
+                <button class="demo-btn" onclick="showReportState()">显示报告状态</button>
+            </div>
+        </div>
+        
+        <!-- 演示3: 报告状态 -->
+        <div class="demo-section" id="report-demo" style="display: none;">
+            <h3>📊 报告状态 - 完整报告展示</h3>
+            <div id="report-container" class="report-container">
+                <!-- 核心数据展示 -->
+                <h2>🌟 核心数字分析</h2>
+                <div class="core-data-grid">
+                    <div class="data-card">
+                        <div class="label">生命路径数字</div>
+                        <div class="value">8</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">生日数字</div>
+                        <div class="value">6</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">主要挑战</div>
+                        <div class="value">3</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">当前挑战</div>
+                        <div class="value">1</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">个人年数字</div>
+                        <div class="value">7</div>
+                    </div>
+                    <div class="data-card">
+                        <div class="label">年龄</div>
+                        <div class="value">7岁</div>
+                    </div>
+                </div>
+                
+                <!-- 雷达图 -->
+                <h2>🎯 性格蓝图雷达图</h2>
+                <div class="chart-container">
+                    <canvas id="demoChart" width="400" height="300" style="border: 2px dashed #4A90E2; background: rgba(74, 144, 226, 0.1); display: flex; align-items: center; justify-content: center; color: #4A90E2; font-weight: bold;">
+                        雷达图演示区域
+                        <br>
+                        实际使用时会显示Chart.js雷达图
+                    </canvas>
+                </div>
+                
+                <!-- 报告内容 -->
+                <div class="report-section">
+                    <h2>第一章：内在团队 - 性格原型分析</h2>
+                    <div class="content-breakdown">
+                        <div class="breakdown-title">团队队长：小领袖</div>
+                        <div class="breakdown-description">
+                            您的孩子天生具有领导才能，喜欢组织和指导他人。在7岁这个年龄，这种特质可能表现为在游戏中主动制定规则，或者在小组活动中担任组织者角色。
+                        </div>
+                        
+                        <div class="breakdown-subtitle">支持角色</div>
+                        <ul>
+                            <li><strong>创意伙伴</strong>：来自生日数字6，带来艺术天赋和同理心</li>
+                            <li><strong>智慧顾问</strong>：来自挑战数字3，提供沟通技巧和社交智慧</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <h2>第二章：内心世界 - 天赋、挑战与内在驱动力</h2>
+                    <div class="content-breakdown">
+                        <div class="breakdown-title">🌟 核心优势：实践智慧</div>
+                        <div class="breakdown-description">
+                            您的孩子拥有独特的实践智慧，能够将抽象概念转化为具体行动。这种能力在7岁时表现为对规则和系统的深刻理解，以及解决实际问题的天赋。
+                        </div>
+                        
+                        <div class="breakdown-subtitle">⛰️ 人生关键课题</div>
+                        <div class="breakdown-description">
+                            <strong>建立真正的自信</strong>：学会在保持谦逊的同时，充分认识自己的能力和价值。
+                        </div>
+                        
+                        <div class="breakdown-subtitle">🌊 隐藏的恐惧</div>
+                        <div class="breakdown-description">
+                            <strong>害怕失去控制</strong>：在不确定的情况下可能感到焦虑，需要学会适应变化。
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <h2>第三章：父母指南 - 实用策略与沟通技巧</h2>
+                    <div class="content-breakdown">
+                        <div class="breakdown-title">🏠 学习环境：创意工作室</div>
+                        <div class="breakdown-description">
+                            为您的孩子创造一个既有序又充满创意的学习环境，平衡结构化和自由探索的空间。
+                        </div>
+                        
+                        <div class="breakdown-subtitle">💬 沟通锦囊（激发潜能）</div>
+                        <div class="breakdown-description">
+                            <div class="comm-instead">❌ 不要说："你怎么又做错了？"</div>
+                            <div class="comm-try">✅ 试试说："我看到你在努力，让我们一起来看看哪里可以改进。"</div>
+                            <div class="comm-why">💡 为什么有效：认可努力过程，培养成长型思维</div>
+                        </div>
+                        
+                        <div class="breakdown-subtitle">💬 沟通锦囊（边界设定）</div>
+                        <div class="breakdown-description">
+                            <div class="comm-instead">❌ 不要说："你必须听我的！"</div>
+                            <div class="comm-try">✅ 试试说："我们需要一起找到解决方案，你觉得呢？"</div>
+                            <div class="comm-why">💡 为什么有效：尊重孩子的想法，培养合作精神</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <h2>第四章：点燃激情 - 兴趣与职业发展</h2>
+                    <div class="content-breakdown">
+                        <div class="breakdown-title">🎨 推荐兴趣爱好</div>
+                        <div class="breakdown-description">
+                            <strong>第一层推荐：领导力发展</strong>
+                            <ul>
+                                <li>团队运动（足球、篮球）</li>
+                                <li>戏剧表演</li>
+                                <li>学生委员会</li>
+                                <li>童子军活动</li>
+                                <li>辩论俱乐部</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="breakdown-subtitle">💼 推荐职业方向</div>
+                        <div class="breakdown-description">
+                            <strong>第一层推荐：管理与领导</strong>
+                            <ul>
+                                <li>企业管理者</li>
+                                <li>项目经理</li>
+                                <li>教育工作者</li>
+                                <li>社区组织者</li>
+                                <li>创业者</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="report-section">
+                    <h2>结语</h2>
+                    <div class="breakdown-description">
+                        您的孩子拥有非凡的领导潜力和实践智慧。作为父母，您的角色是成为他们成长路上的支持者和引导者。记住，每个孩子都是独特的，最重要的是帮助他们发现和发挥自己的天赋，同时学会在团队中合作和成长。
+                    </div>
+                </div>
+            </div>
+            
+            <footer>
+                <div class="footer-buttons">
+                    <button id="generate-again-btn">生成另一份报告</button>
+                    <button id="save-pdf-btn">保存为PDF</button>
+                    <button id="save-image-btn">保存为图片</button>
+                </div>
+            </footer>
+            
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="showInitialState()">返回初始状态</button>
+                <button class="demo-btn" onclick="showLoadingState()">显示加载状态</button>
+                <button class="demo-btn" onclick="showErrorState()">显示错误状态</button>
+            </div>
+        </div>
+        
+        <!-- 演示4: 错误状态 -->
+        <div class="demo-section" id="error-demo" style="display: none;">
+            <h3>❌ 错误状态 - 处理异常情况</h3>
+            <div id="error-message" class="error-message">
+                生成报告失败，请稍后再试。错误详情：网络连接超时
+            </div>
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="showInitialState()">返回初始状态</button>
+                <button class="demo-btn" onclick="showReportState()">显示报告状态</button>
+            </div>
+        </div>
+        
+        <!-- 演示5: 移动端适配 -->
+        <div class="demo-section">
+            <h3>📱 移动端适配预览</h3>
+            <p>在移动设备上，界面会自动调整为：</p>
+            <ul>
+                <li>输入区域垂直排列</li>
+                <li>性别选择器紧凑布局</li>
+                <li>核心数据网格变为2列</li>
+                <li>图表尺寸自适应</li>
+                <li>按钮垂直排列</li>
+            </ul>
+            <div class="demo-buttons">
+                <button class="demo-btn" onclick="toggleMobileView()">切换移动端视图</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // 演示页面交互功能
+        function showInitialState() {
+            document.querySelectorAll('.demo-section').forEach(section => section.style.display = 'none');
+            document.querySelector('.demo-section').style.display = 'block';
+        }
+        
+        function showLoadingState() {
+            document.querySelectorAll('.demo-section').forEach(section => section.style.display = 'none');
+            document.getElementById('loading-demo').style.display = 'block';
+        }
+        
+        function showReportState() {
+            document.querySelectorAll('.demo-section').forEach(section => section.style.display = 'none');
+            document.getElementById('report-demo').style.display = 'block';
+        }
+        
+        function showErrorState() {
+            document.querySelectorAll('.demo-section').forEach(section => section.style.display = 'none');
+            document.getElementById('error-demo').style.display = 'block';
+        }
+        
+        function toggleMobileView() {
+            const container = document.querySelector('.container');
+            if (container.style.maxWidth === '400px') {
+                container.style.maxWidth = '800px';
+                container.style.padding = '40px';
+            } else {
+                container.style.maxWidth = '400px';
+                container.style.padding = '20px';
+            }
+        }
+        
+        // 模拟性别选择交互
+        document.querySelectorAll('input[name="gender"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                document.querySelectorAll('.gender-option').forEach(option => {
+                    option.style.borderColor = '#e8eaf6';
+                    option.style.background = 'white';
+                });
+                if (this.checked) {
+                    this.nextElementSibling.style.borderColor = '#4A90E2';
+                    this.nextElementSibling.style.background = 'linear-gradient(135deg, rgba(74, 144, 226, 0.1), rgba(102, 126, 234, 0.1))';
+                }
+            });
+        });
+        
+        // 模拟按钮点击效果
+        document.querySelectorAll('.demo-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.add('active');
+                setTimeout(() => this.classList.remove('active'), 200);
+            });
+        });
+        
+        // 模拟进度条动画
+        function animateProgress() {
+            const progressBar = document.getElementById('loader-progress-inner');
+            let width = 0;
+            const interval = setInterval(() => {
+                if (width < 90) {
+                    width += Math.random() * 2 + 0.5;
+                    progressBar.style.width = width + '%';
+                } else {
+                    clearInterval(interval);
+                }
+            }, 400);
+        }
+        
+        // 页面加载时启动进度条动画
+        window.addEventListener('load', () => {
+            setTimeout(animateProgress, 1000);
+        });
+    </script>
+</body>
+</html> 
