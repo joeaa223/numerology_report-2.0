@@ -574,13 +574,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="report-container">
                         ${reportContent}
                     </div>
+                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
                     <script>
                         // Re-render charts in the print window
                         document.addEventListener('DOMContentLoaded', function() {
-                            // Wait a moment for content to load
+                            // Wait for Chart.js to load
                             setTimeout(function() {
                                 // Get chart data from parent window
-                                const parentCharts = window.opener.document.querySelectorAll('canvas[data-chart-data]');
+                                const parentCharts = window.opener.document.querySelectorAll('canvas[id="polygonChartCanvas"]');
                                 const printCharts = document.querySelectorAll('canvas');
                                 
                                 if (parentCharts.length > 0 && printCharts.length > 0) {
@@ -590,14 +592,21 @@ document.addEventListener('DOMContentLoaded', () => {
                                                 const chartData = JSON.parse(parentChart.dataset.chartData);
                                                 // Re-render chart using Chart.js if available
                                                 if (typeof Chart !== 'undefined') {
-                                                    new Chart(printCharts[index], {
-                                                        type: 'radar',
-                                                        data: chartData.data,
-                                                        options: chartData.options
-                                                    });
+                                                    // Register the datalabels plugin
+                                                    Chart.register(ChartDataLabels);
+                                                    
+                                                    new Chart(printCharts[index], chartData);
                                                 }
                                             } catch (e) {
                                                 console.log('Chart rendering failed:', e);
+                                                // Fallback: show chart data as text
+                                                const canvas = printCharts[index];
+                                                const ctx = canvas.getContext('2d');
+                                                ctx.fillStyle = '#4A90E2';
+                                                ctx.font = '16px Arial';
+                                                ctx.textAlign = 'center';
+                                                ctx.fillText('雷达图数据', canvas.width / 2, canvas.height / 2 - 10);
+                                                ctx.fillText('(图表渲染失败)', canvas.width / 2, canvas.height / 2 + 10);
                                             }
                                         }
                                     });
@@ -610,11 +619,10 @@ document.addEventListener('DOMContentLoaded', () => {
                                     setTimeout(function() {
                                         window.close();
                                     }, 1000);
-                                }, 500);
+                                }, 1500); // Increased delay to ensure charts render
                             }, 1000);
                         });
                     </script>
-                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
                 </body>
                 </html>
             `;
@@ -762,6 +770,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div style="text-align: center; margin-top: 30px; color: #666; font-size: 0.8em;">
                     <p>📱 移动端生成 | 数字命理与发展指南</p>
                 </div>
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+                <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+                <script>
+                    // Re-render charts in the mobile PDF window
+                    document.addEventListener('DOMContentLoaded', function() {
+                        setTimeout(function() {
+                            // Get chart data from parent window
+                            const parentCharts = window.opener.document.querySelectorAll('canvas[id="polygonChartCanvas"]');
+                            const printCharts = document.querySelectorAll('canvas');
+                            
+                            if (parentCharts.length > 0 && printCharts.length > 0) {
+                                parentCharts.forEach((parentChart, index) => {
+                                    if (printCharts[index] && parentChart.dataset.chartData) {
+                                        try {
+                                            const chartData = JSON.parse(parentChart.dataset.chartData);
+                                            if (typeof Chart !== 'undefined') {
+                                                Chart.register(ChartDataLabels);
+                                                new Chart(printCharts[index], chartData);
+                                            }
+                                        } catch (e) {
+                                            console.log('Mobile chart rendering failed:', e);
+                                            // Fallback for mobile
+                                            const canvas = printCharts[index];
+                                            const ctx = canvas.getContext('2d');
+                                            ctx.fillStyle = '#4A90E2';
+                                            ctx.font = '14px Arial';
+                                            ctx.textAlign = 'center';
+                                            ctx.fillText('雷达图数据', canvas.width / 2, canvas.height / 2 - 8);
+                                            ctx.fillText('(图表渲染失败)', canvas.width / 2, canvas.height / 2 + 8);
+                                        }
+                                    }
+                                });
+                            }
+                        }, 1000);
+                    });
+                </script>
             </body>
             </html>
         `;
@@ -986,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const chartHtml = `
             <h3>性格蓝图</h3>
             <div class="chart-container">
-                <canvas id="polygonChartCanvas" data-chart-data='${JSON.stringify(polygonChart)}'></canvas>
+                <canvas id="polygonChartCanvas"></canvas>
             </div>
         `;
 
