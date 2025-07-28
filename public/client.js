@@ -3,6 +3,84 @@ function isMobileDevice() {
     return /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
+// Helper function to detect iPad specifically
+    function isIPad() {
+        return /iPad/.test(navigator.userAgent) || 
+               (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 && window.innerWidth >= 768);
+    }
+
+    // Helper function to create chart config from raw data
+    function createChartConfigFromRawData(rawChartData) {
+        if (!rawChartData) return null;
+        
+        const labelMapping = new Map([
+            ['LeadershipAndIndependence', '领导与独立'],
+            ['EmpathyAndConnection', '共情与连结'],
+            ['CreativityAndExpression', '创意与表达'],
+            ['AnalyticalAndStrategicMind', '分析与策略'],
+            ['DiligenceAndReliability', '勤奋与可靠'],
+            ['AdventurousAndAdaptableSpirit', '冒险与适应']
+        ]);
+
+        const labels = Object.keys(rawChartData).map(key => labelMapping.get(key) || key);
+        const data = Object.values(rawChartData);
+
+        return {
+            type: 'radar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '性格蓝图分数',
+                    data: data,
+                    backgroundColor: 'rgba(160, 132, 232, 0.2)',
+                    borderColor: 'rgb(95, 153, 247)',
+                    pointBackgroundColor: 'rgb(95, 153, 247)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(95, 153, 247)',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: {
+                            display: true
+                        },
+                        suggestedMin: 0,
+                        suggestedMax: 10,
+                        pointLabels: {
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            }
+                        },
+                        ticks: {
+                            display: false,
+                            stepSize: 2
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    datalabels: {
+                        color: '#ffffff',
+                        backgroundColor: 'rgba(132, 175, 232, 0.8)',
+                        borderRadius: 4,
+                        font: {
+                            weight: 'bold'
+                        },
+                        padding: 4
+                    }
+                }
+            }
+        };
+    }
+
 // Helper function to check Web Share API capabilities
 function getShareCapabilities() {
     const capabilities = {
@@ -173,7 +251,10 @@ document.addEventListener('DOMContentLoaded', () => {
             saveImageBtn.style.display = 'block';
 
             // Update button text based on device
-            if (isMobileDevice()) {
+            if (isIPad()) {
+                saveImageBtn.textContent = getShareCapabilities().canShareFiles ? '分享/保存图片' : '保存图片';
+                savePdfBtn.textContent = '打印为PDF';
+            } else if (isMobileDevice()) {
                 saveImageBtn.textContent = getShareCapabilities().canShareFiles ? '分享/保存图片' : '保存图片';
                 savePdfBtn.textContent = '分享/保存PDF';
             } else {
@@ -395,7 +476,9 @@ document.addEventListener('DOMContentLoaded', () => {
     savePdfBtn.addEventListener('click', async () => {
         // Show loading state
         savePdfBtn.disabled = true;
-        if (isMobileDevice()) {
+        if (isIPad()) {
+            savePdfBtn.textContent = '正在准备打印...';
+        } else if (isMobileDevice()) {
             savePdfBtn.textContent = '正在准备分享...';
         } else {
             savePdfBtn.textContent = '正在生成PDF...';
@@ -470,6 +553,31 @@ document.addEventListener('DOMContentLoaded', () => {
             if (charts.length > 0) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
+
+                    // Get chart data before generating PDF content
+        let chartDataForPDF = null;
+        
+        // First try to get from canvas dataset
+        const polygonCanvas = document.getElementById('polygonChartCanvas');
+        if (polygonCanvas && polygonCanvas.dataset.chartData) {
+            try {
+                chartDataForPDF = JSON.parse(polygonCanvas.dataset.chartData);
+                console.log('Chart data found from canvas for desktop PDF:', chartDataForPDF);
+            } catch (e) {
+                console.error('Failed to parse chart data from canvas for desktop PDF:', e);
+            }
+        }
+        
+        // Fallback to global stored data
+        if (!chartDataForPDF && window.polygonChartDataForPDF) {
+            console.log('Using global chart data for desktop PDF:', window.polygonChartDataForPDF);
+            // Create chart config from raw data
+            chartDataForPDF = createChartConfigFromRawData(window.polygonChartDataForPDF);
+        }
+        
+        if (!chartDataForPDF) {
+            console.warn('No chart data found for desktop PDF');
+        }
 
             // Get the report content
             const reportContent = reportContainer.innerHTML;
@@ -577,30 +685,34 @@ document.addEventListener('DOMContentLoaded', () => {
                     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
                     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
                     <script>
+                        // Chart data embedded directly in desktop PDF
+                        const embeddedChartData = ${chartDataForPDF ? JSON.stringify(chartDataForPDF) : 'null'};
+                        
                         // Re-render charts in the print window
                         document.addEventListener('DOMContentLoaded', function() {
+                            console.log('Desktop PDF DOMContentLoaded, embedded chart data:', embeddedChartData);
+                            
                             // Wait for Chart.js to load
                             setTimeout(function() {
-                                // Get chart data from parent window
-                                const parentCharts = window.opener.document.querySelectorAll('canvas[id="polygonChartCanvas"]');
                                 const printCharts = document.querySelectorAll('canvas');
+                                console.log('Found canvases in desktop PDF:', printCharts.length);
                                 
-                                if (parentCharts.length > 0 && printCharts.length > 0) {
-                                    parentCharts.forEach((parentChart, index) => {
-                                        if (printCharts[index] && parentChart.dataset.chartData) {
+                                if (embeddedChartData && printCharts.length > 0) {
+                                    printCharts.forEach((canvas, index) => {
+                                        if (canvas.id === 'polygonChartCanvas' || index === 0) {
                                             try {
-                                                const chartData = JSON.parse(parentChart.dataset.chartData);
-                                                // Re-render chart using Chart.js if available
-                                                if (typeof Chart !== 'undefined') {
-                                                    // Register the datalabels plugin
+                                                console.log('Attempting to render chart in desktop PDF...');
+                                                if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
                                                     Chart.register(ChartDataLabels);
-                                                    
-                                                    new Chart(printCharts[index], chartData);
+                                                    new Chart(canvas, embeddedChartData);
+                                                    console.log('Chart rendered successfully in desktop PDF');
+                                                } else {
+                                                    console.error('Chart.js or ChartDataLabels not loaded in desktop PDF');
+                                                    throw new Error('Chart.js libraries not available');
                                                 }
                                             } catch (e) {
-                                                console.log('Chart rendering failed:', e);
+                                                console.error('Desktop chart rendering failed:', e);
                                                 // Fallback: show chart data as text
-                                                const canvas = printCharts[index];
                                                 const ctx = canvas.getContext('2d');
                                                 ctx.fillStyle = '#4A90E2';
                                                 ctx.font = '16px Arial';
@@ -610,6 +722,27 @@ document.addEventListener('DOMContentLoaded', () => {
                                             }
                                         }
                                     });
+                                } else {
+                                    console.warn('No embedded chart data or canvases found in desktop PDF');
+                                    // Try fallback method - get from parent window
+                                    if (window.opener) {
+                                        try {
+                                            const parentCharts = window.opener.document.querySelectorAll('canvas[id="polygonChartCanvas"]');
+                                            if (parentCharts.length > 0 && printCharts.length > 0) {
+                                                const parentChart = parentCharts[0];
+                                                if (parentChart.dataset.chartData) {
+                                                    const chartData = JSON.parse(parentChart.dataset.chartData);
+                                                    if (typeof Chart !== 'undefined') {
+                                                        Chart.register(ChartDataLabels);
+                                                        new Chart(printCharts[0], chartData);
+                                                        console.log('Chart rendered from parent window data in desktop PDF');
+                                                    }
+                                                }
+                                            }
+                                        } catch (e) {
+                                            console.error('Fallback chart rendering failed in desktop PDF:', e);
+                                        }
+                                    }
                                 }
                                 
                                 // Auto-trigger print dialog after a short delay
@@ -640,7 +773,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             console.error('PDF generation failed:', error);
-            if (isMobileDevice()) {
+            if (isIPad()) {
+                alert(`iPad PDF生成失败：${error.message}\n\n🔧 iPad替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用iPad截屏功能保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
+            } else if (isMobileDevice()) {
                 alert(`PDF生成失败：${error.message}\n\n🔧 移动端替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF`);
             } else {
                 alert(`PDF生成失败：${error.message}\n\n🔧 替代方案：\n1️⃣ 使用浏览器菜单：文件 → 打印 → 保存为PDF\n2️⃣ 按快捷键：Ctrl+P (Windows) 或 Cmd+P (Mac)\n3️⃣ 使用"保存为图片"功能作为备选`);
@@ -648,7 +783,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } finally {
             // Reset button state
             savePdfBtn.disabled = false;
-            if (isMobileDevice()) {
+            if (isIPad()) {
+                savePdfBtn.textContent = '打印为PDF';
+            } else if (isMobileDevice()) {
                 savePdfBtn.textContent = '分享/保存PDF';
             } else {
                 savePdfBtn.textContent = '保存为PDF';
@@ -662,6 +799,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const charts = reportContainer.querySelectorAll('canvas');
         if (charts.length > 0) {
             await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Get chart data before generating PDF content
+        let chartDataForPDF = null;
+        
+        // First try to get from canvas dataset
+        const polygonCanvas = document.getElementById('polygonChartCanvas');
+        if (polygonCanvas && polygonCanvas.dataset.chartData) {
+            try {
+                chartDataForPDF = JSON.parse(polygonCanvas.dataset.chartData);
+                console.log('Chart data found from canvas for mobile PDF:', chartDataForPDF);
+            } catch (e) {
+                console.error('Failed to parse chart data from canvas for mobile PDF:', e);
+            }
+        }
+        
+        // Fallback to global stored data
+        if (!chartDataForPDF && window.polygonChartDataForPDF) {
+            console.log('Using global chart data for mobile PDF:', window.polygonChartDataForPDF);
+            // Create chart config from raw data
+            chartDataForPDF = createChartConfigFromRawData(window.polygonChartDataForPDF);
+        }
+        
+        if (!chartDataForPDF) {
+            console.warn('No chart data found for mobile PDF');
         }
 
         // Get the report content
@@ -773,26 +935,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
                 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
                 <script>
+                    // Chart data embedded directly in mobile PDF
+                    const embeddedChartData = ${chartDataForPDF ? JSON.stringify(chartDataForPDF) : 'null'};
+                    
                     // Re-render charts in the mobile PDF window
                     document.addEventListener('DOMContentLoaded', function() {
+                        console.log('Mobile PDF DOMContentLoaded, embedded chart data:', embeddedChartData);
+                        
                         setTimeout(function() {
-                            // Get chart data from parent window
-                            const parentCharts = window.opener.document.querySelectorAll('canvas[id="polygonChartCanvas"]');
                             const printCharts = document.querySelectorAll('canvas');
+                            console.log('Found canvases in mobile PDF:', printCharts.length);
                             
-                            if (parentCharts.length > 0 && printCharts.length > 0) {
-                                parentCharts.forEach((parentChart, index) => {
-                                    if (printCharts[index] && parentChart.dataset.chartData) {
+                            if (embeddedChartData && printCharts.length > 0) {
+                                printCharts.forEach((canvas, index) => {
+                                    if (canvas.id === 'polygonChartCanvas' || index === 0) {
                                         try {
-                                            const chartData = JSON.parse(parentChart.dataset.chartData);
-                                            if (typeof Chart !== 'undefined') {
+                                            console.log('Attempting to render chart in mobile PDF...');
+                                            if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
                                                 Chart.register(ChartDataLabels);
-                                                new Chart(printCharts[index], chartData);
+                                                new Chart(canvas, embeddedChartData);
+                                                console.log('Chart rendered successfully in mobile PDF');
+                                            } else {
+                                                console.error('Chart.js or ChartDataLabels not loaded');
+                                                throw new Error('Chart.js libraries not available');
                                             }
                                         } catch (e) {
-                                            console.log('Mobile chart rendering failed:', e);
-                                            // Fallback for mobile
-                                            const canvas = printCharts[index];
+                                            console.error('Mobile chart rendering failed:', e);
+                                            // Fallback: draw chart data as text
                                             const ctx = canvas.getContext('2d');
                                             ctx.fillStyle = '#4A90E2';
                                             ctx.font = '14px Arial';
@@ -802,8 +971,29 @@ document.addEventListener('DOMContentLoaded', () => {
                                         }
                                     }
                                 });
+                            } else {
+                                console.warn('No embedded chart data or canvases found');
+                                // Try fallback method - get from parent window
+                                if (window.opener) {
+                                    try {
+                                        const parentCharts = window.opener.document.querySelectorAll('canvas[id="polygonChartCanvas"]');
+                                        if (parentCharts.length > 0 && printCharts.length > 0) {
+                                            const parentChart = parentCharts[0];
+                                            if (parentChart.dataset.chartData) {
+                                                const chartData = JSON.parse(parentChart.dataset.chartData);
+                                                if (typeof Chart !== 'undefined') {
+                                                    Chart.register(ChartDataLabels);
+                                                    new Chart(printCharts[0], chartData);
+                                                    console.log('Chart rendered from parent window data');
+                                                }
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.error('Fallback chart rendering failed:', e);
+                                    }
+                                }
                             }
-                        }, 1000);
+                        }, 1500); // Increased delay for mobile
                     });
                 </script>
             </body>
@@ -819,25 +1009,76 @@ document.addEventListener('DOMContentLoaded', () => {
         // Create a simplified print window for mobile
         const printContent = await generateMobilePDFContent();
         
-        // Try to use data URL approach for mobile
-        const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(printContent);
+        // Check if it's iPad (iPad has larger screen and different behavior)
+        const isIPadDevice = isIPad();
         
-        // Open in new window/tab
-        const printWindow = window.open(dataUrl, '_blank');
-        
-        if (printWindow) {
-            // Give it time to load, then try to trigger print
-            setTimeout(() => {
-                try {
-                    printWindow.print();
-                } catch (e) {
-                    console.log('Auto-print failed on mobile:', e);
-                }
-            }, 2000);
+        if (isIPadDevice) {
+            console.log('iPad detected, using iPad-specific approach');
             
-            alert('报告已在新窗口中打开！📱\n\n📄 保存为PDF步骤：\n1️⃣ 在新窗口中点击菜单（⋮）\n2️⃣ 选择"打印"或"分享"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置');
+            // For iPad, try multiple approaches
+            console.log('Trying iPad-specific PDF generation...');
+            
+            // Method 1: Try blob URL first (most reliable for iPad)
+            const blob = new Blob([printContent], { type: 'text/html' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            let printWindow = window.open(blobUrl, '_blank');
+            
+            if (printWindow) {
+                console.log('iPad: Blob URL approach successful');
+                
+                // For iPad, don't auto-trigger print immediately
+                setTimeout(() => {
+                    try {
+                        // Try to trigger print after a longer delay for iPad
+                        printWindow.print();
+                    } catch (e) {
+                        console.log('Auto-print failed on iPad:', e);
+                    }
+                }, 3000);
+                
+                alert('报告已在新窗口中打开！📱\n\n📄 iPad保存为PDF步骤：\n1️⃣ 在新窗口中点击分享按钮（□）\n2️⃣ 选择"打印"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置\n\n💡 如果没有自动弹出打印对话框，请手动点击分享按钮');
+                
+                // Clean up blob URL after a delay
+                setTimeout(() => {
+                    URL.revokeObjectURL(blobUrl);
+                }, 10000);
+            } else {
+                console.log('iPad: Blob URL failed, trying data URL');
+                
+                // Method 2: Try data URL as fallback
+                const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(printContent);
+                printWindow = window.open(dataUrl, '_blank');
+                
+                if (printWindow) {
+                    console.log('iPad: Data URL approach successful');
+                    alert('报告已在新窗口中打开！📱\n\n📄 iPad保存为PDF步骤：\n1️⃣ 在新窗口中点击分享按钮（□）\n2️⃣ 选择"打印"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置');
+                } else {
+                    console.log('iPad: Both methods failed, throwing error');
+                    throw new Error('iPad无法打开新窗口，请尝试使用"保存为图片"功能');
+                }
+            }
         } else {
-            throw new Error('无法打开新窗口，请允许弹窗或尝试其他方法');
+            // For iPhone and other mobile devices, use data URL approach
+            const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(printContent);
+            
+            // Open in new window/tab
+            const printWindow = window.open(dataUrl, '_blank');
+            
+            if (printWindow) {
+                // Give it time to load, then try to trigger print
+                setTimeout(() => {
+                    try {
+                        printWindow.print();
+                    } catch (e) {
+                        console.log('Auto-print failed on mobile:', e);
+                    }
+                }, 2000);
+                
+                alert('报告已在新窗口中打开！📱\n\n📄 保存为PDF步骤：\n1️⃣ 在新窗口中点击菜单（⋮）\n2️⃣ 选择"打印"或"分享"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置');
+            } else {
+                throw new Error('无法打开新窗口，请允许弹窗或尝试其他方法');
+            }
         }
     }
 
@@ -1038,6 +1279,12 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => {
             renderPolygonChart(polygonChart);
         }, 0);
+
+        // Store chart data immediately for PDF generation
+        if (polygonChart) {
+            // Store raw chart data for later use
+            window.polygonChartDataForPDF = polygonChart;
+        }
 
         const teamCaptainHtml = createBreakdownBlock(
             teamCaptain.archetype, 
