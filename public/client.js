@@ -81,6 +81,101 @@ function isMobileDevice() {
         };
     }
 
+// HTML转PDF功能 - 使用jsPDF和html2canvas自动生成真正的PDF文件
+async function generateHTMLToPDF(filename) {
+    try {
+        console.log('开始生成HTML转PDF...');
+        
+        // 检查jsPDF是否可用
+        if (typeof window.jspdf === 'undefined') {
+            throw new Error('jsPDF库未加载，请刷新页面重试');
+        }
+        
+        const { jsPDF } = window.jspdf;
+        const reportContainer = document.getElementById('report-container');
+        
+        // 使用html2canvas捕获整个报告
+        const canvas = await html2canvas(reportContainer, {
+            scale: 2, // 提高分辨率
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            width: reportContainer.scrollWidth,
+            height: reportContainer.scrollHeight,
+            scrollX: 0,
+            scrollY: 0,
+            logging: false,
+            // 确保图表正确渲染
+            onclone: function(clonedDoc) {
+                const clonedContainer = clonedDoc.getElementById('report-container');
+                if (clonedContainer) {
+                    // 确保所有图表都完全渲染
+                    const charts = clonedContainer.querySelectorAll('canvas');
+                    charts.forEach(chart => {
+                        if (chart.chart) {
+                            chart.chart.resize();
+                        }
+                    });
+                }
+            }
+        });
+        
+        // 将canvas转换为图片
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        
+        // 创建PDF文档
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const imgWidth = 210; // A4宽度
+        const pageHeight = 295; // A4高度
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 0;
+        
+        // 添加第一页
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        
+        // 如果内容超过一页，添加更多页
+        while (heightLeft >= 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+        
+        console.log('HTML转PDF完成');
+        return pdf;
+        
+    } catch (error) {
+        console.error('HTML转PDF失败:', error);
+        throw error;
+    }
+}
+
+// 移动端PDF分享功能
+async function sharePDFOnMobile(pdfBlob, filename) {
+    if (navigator.share && navigator.canShare) {
+        try {
+            const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
+            
+            // 检查是否可以分享PDF文件
+            if (navigator.canShare({ files: [pdfFile] })) {
+                const shareData = {
+                    files: [pdfFile],
+                    title: '儿童命理报告 - PDF版本',
+                    text: '我的孩子的数字命理与发展指南报告'
+                };
+                
+                await navigator.share(shareData);
+                return true;
+            }
+        } catch (error) {
+            console.log('移动端PDF分享失败:', error);
+        }
+    }
+    return false;
+}
+
 // Helper function to check Web Share API capabilities
 function getShareCapabilities() {
     const capabilities = {
@@ -476,17 +571,12 @@ document.addEventListener('DOMContentLoaded', () => {
     savePdfBtn.addEventListener('click', async () => {
         // Show loading state
         savePdfBtn.disabled = true;
-        if (isIPad()) {
-            savePdfBtn.textContent = '正在准备打印...';
-        } else if (isMobileDevice()) {
-            savePdfBtn.textContent = '正在准备分享...';
-        } else {
-            savePdfBtn.textContent = '正在生成PDF...';
-        }
+        savePdfBtn.textContent = '正在生成PDF...';
 
-        // Get the birth date for filename
+        // Get the birth date and gender for filename
         const birthDate = birthdayInput.value;
-        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}.pdf`;
+        const gender = document.querySelector('input[name="gender"]:checked')?.value || '未知';
+        const filename = `儿童命理报告_${birthDate.replace(/-/g, '')}_${gender}.pdf`;
         
         // Check if content exists
         if (reportContainer.innerHTML.length < 100) {
@@ -497,307 +587,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            // For mobile devices, try a different approach
-            if (isMobileDevice()) {
-                console.log('Mobile device detected, using mobile-friendly PDF approach');
-                
-                // Check Web Share API capabilities for PDF
-                const shareCapabilities = getShareCapabilities();
-                
-                if (shareCapabilities.hasWebShare && shareCapabilities.canShareFiles) {
-                    try {
-                        // For iPhone, try to generate a static HTML with embedded chart image
-                        if (/iPhone/.test(navigator.userAgent)) {
-                            console.log('iPhone detected, generating static PDF content...');
-                            const staticPdfContent = await generateStaticMobilePDFContent();
-                            const pdfBlob = new Blob([staticPdfContent], { type: 'text/html' });
-                            const htmlFile = new File([pdfBlob], filename.replace('.pdf', '.html'), { type: 'text/html' });
-                            
-                            const shareData = {
-                                files: [htmlFile],
-                                title: '儿童命理报告 - PDF版本',
-                                text: '我的孩子的数字命理与发展指南报告（iPhone优化版）'
-                            };
-
-                            await navigator.share(shareData);
-                            alert('报告分享成功！📱✨\n\n📄 iPhone用户操作：\n1️⃣ 打开分享的文件\n2️⃣ 点击分享按钮\n3️⃣ 选择"打印"\n4️⃣ 选择"保存为PDF"\n\n💡 此版本已针对iPhone优化，图表将正常显示');
-                            return;
-                        } else {
-                            // For Android and other devices, use static content for better compatibility
-                            console.log('Android/Other device detected, using static PDF content...');
-                            const staticPdfContent = await generateStaticMobilePDFContent();
-                            const pdfBlob = new Blob([staticPdfContent], { type: 'text/html' });
-                            const htmlFile = new File([pdfBlob], filename.replace('.pdf', '.html'), { type: 'text/html' });
-                            
-                            const shareData = {
-                                files: [htmlFile],
-                                title: '儿童命理报告 - PDF版本',
-                                text: '我的孩子的数字命理与发展指南报告（Android优化版）'
-                            };
-
-                            await navigator.share(shareData);
-                            alert('报告分享成功！📱✨\n\n📄 Android用户操作：\n1️⃣ 打开分享的文件\n2️⃣ 点击分享按钮\n3️⃣ 选择"打印"\n4️⃣ 选择"保存为PDF"\n\n💡 此版本已针对Android优化，图表将正常显示');
-                            return;
-                        }
-                        
-                    } catch (shareError) {
-                        console.log('Mobile share failed, falling back to traditional method:', shareError);
-                    }
-                }
-                
-                // Mobile fallback: Use a simplified print approach
-                try {
-                    if (/iPhone/.test(navigator.userAgent) || /Android/.test(navigator.userAgent)) {
-                        await generateStaticMobilePDF();
-                    } else {
-                        await generateMobilePDF();
-                    }
-                    return;
-                } catch (mobileError) {
-                    console.log('Mobile PDF generation failed, trying desktop method:', mobileError);
-                    // Fall through to desktop method
-                }
-            }
+            // 使用新的HTML转PDF功能生成真正的PDF文件
+            const pdf = await generateHTMLToPDF(filename);
+            const pdfBlob = pdf.output('blob');
             
-            // Desktop method or mobile fallback
-            const printWindow = window.open('', '_blank');
-            if (!printWindow) {
-                if (isMobileDevice()) {
-                    throw new Error('无法打开打印窗口。请尝试使用"保存为图片"功能作为替代。');
+            // 移动端尝试分享，桌面端直接下载
+            if (isMobileDevice()) {
+                console.log('移动设备检测到，尝试分享PDF文件...');
+                const shared = await sharePDFOnMobile(pdfBlob, filename);
+                
+                if (!shared) {
+                    // 如果分享失败，使用传统下载方式
+                    console.log('移动端分享失败，使用传统下载方式...');
+                    const url = URL.createObjectURL(pdfBlob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    
+                    alert('PDF生成成功！📱✨\n\n文件已下载为真正的PDF格式。\n如果下载失败，请检查浏览器的下载权限设置。');
                 } else {
-                    throw new Error('弹窗被阻止，请允许弹窗后重试');
+                    alert('PDF分享成功！📱✨\n\n文件已通过系统分享功能发送，这是真正的PDF格式文件。');
                 }
-            }
-
-            // Wait for charts to be fully rendered
-            const charts = reportContainer.querySelectorAll('canvas');
-            if (charts.length > 0) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
-
-                    // Get chart data before generating PDF content
-        let chartDataForPDF = null;
-        
-        // First try to get from canvas dataset
-        const polygonCanvas = document.getElementById('polygonChartCanvas');
-        if (polygonCanvas && polygonCanvas.dataset.chartData) {
-            try {
-                chartDataForPDF = JSON.parse(polygonCanvas.dataset.chartData);
-                console.log('Chart data found from canvas for desktop PDF:', chartDataForPDF);
-            } catch (e) {
-                console.error('Failed to parse chart data from canvas for desktop PDF:', e);
-            }
-        }
-        
-        // Fallback to global stored data
-        if (!chartDataForPDF && window.polygonChartDataForPDF) {
-            console.log('Using global chart data for desktop PDF:', window.polygonChartDataForPDF);
-            // Create chart config from raw data
-            chartDataForPDF = createChartConfigFromRawData(window.polygonChartDataForPDF);
-        }
-        
-        if (!chartDataForPDF) {
-            console.warn('No chart data found for desktop PDF');
-        }
-
-            // Get the report content
-            const reportContent = reportContainer.innerHTML;
-            
-            // Create print-optimized HTML
-            const printHTML = `
-                <!DOCTYPE html>
-                <html lang="zh-CN">
-                <head>
-                    <meta charset="UTF-8">
-                    <title>儿童命理报告</title>
-                    <style>
-                        @page {
-                            margin: 15mm;
-                            size: A4;
-                        }
-                        body {
-                            font-family: 'Microsoft YaHei', 'SimHei', Arial, sans-serif;
-                            line-height: 1.6;
-                            color: #333;
-                            background: white;
-                            margin: 0;
-                            padding: 0;
-                        }
-                        .report-container {
-                            max-width: none;
-                            padding: 0;
-                            margin: 0;
-                        }
-                        h1, h2, h3 {
-                            color: #4A90E2;
-                            page-break-after: avoid;
-                        }
-                        .core-data-grid {
-                            display: grid;
-                            grid-template-columns: repeat(3, 1fr);
-                            gap: 10px;
-                            margin: 20px 0;
-                        }
-                        .data-card {
-                            border: 2px solid #e8eaf6;
-                            border-radius: 10px;
-                            padding: 15px;
-                            text-align: center;
-                            background: white;
-                        }
-                        .data-card .label {
-                            font-size: 0.9em;
-                            color: #666;
-                            margin-bottom: 5px;
-                        }
-                        .data-card .value {
-                            font-size: 1.5em;
-                            font-weight: bold;
-                            color: #4A90E2;
-                        }
-                        .chart-container {
-                            text-align: center;
-                            margin: 20px 0;
-                            page-break-inside: avoid;
-                        }
-                        .chart-container canvas {
-                            max-width: 400px;
-                            max-height: 400px;
-                        }
-                        .content-breakdown {
-                            margin: 20px 0;
-                            page-break-inside: avoid;
-                        }
-                        .breakdown-title {
-                            font-size: 1.3em;
-                            font-weight: bold;
-                            color: #4A90E2;
-                            margin: 15px 0 10px 0;
-                        }
-                        .breakdown-subtitle {
-                            font-size: 1.1em;
-                            font-weight: bold;
-                            color: #667eea;
-                            margin: 10px 0 5px 0;
-                        }
-                        .comm-instead { color: #e74c3c; }
-                        .comm-try { color: #27ae60; }
-                        .comm-why { color: #8e44ad; }
-                        ul, ol {
-                            padding-left: 20px;
-                        }
-                        li {
-                            margin-bottom: 5px;
-                        }
-                        .report-section {
-                            margin: 25px 0;
-                            page-break-inside: avoid;
-                        }
-                        @media print {
-                            body { -webkit-print-color-adjust: exact; }
-                            .no-print { display: none; }
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="report-container">
-                        ${reportContent}
-                    </div>
-                    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-                    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-                    <script>
-                        // Chart data embedded directly in desktop PDF
-                        const embeddedChartData = ${chartDataForPDF ? JSON.stringify(chartDataForPDF) : 'null'};
-                        
-                        // Re-render charts in the print window
-                        document.addEventListener('DOMContentLoaded', function() {
-                            console.log('Desktop PDF DOMContentLoaded, embedded chart data:', embeddedChartData);
-                            
-                            // Wait for Chart.js to load
-                            setTimeout(function() {
-                                const printCharts = document.querySelectorAll('canvas');
-                                console.log('Found canvases in desktop PDF:', printCharts.length);
-                                
-                                if (embeddedChartData && printCharts.length > 0) {
-                                    printCharts.forEach((canvas, index) => {
-                                        if (canvas.id === 'polygonChartCanvas' || index === 0) {
-                                            try {
-                                                console.log('Attempting to render chart in desktop PDF...');
-                                                if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') {
-                                                    Chart.register(ChartDataLabels);
-                                                    new Chart(canvas, embeddedChartData);
-                                                    console.log('Chart rendered successfully in desktop PDF');
-                                                } else {
-                                                    console.error('Chart.js or ChartDataLabels not loaded in desktop PDF');
-                                                    throw new Error('Chart.js libraries not available');
-                                                }
-                                            } catch (e) {
-                                                console.error('Desktop chart rendering failed:', e);
-                                                // Fallback: show chart data as text
-                                                const ctx = canvas.getContext('2d');
-                                                ctx.fillStyle = '#4A90E2';
-                                                ctx.font = '16px Arial';
-                                                ctx.textAlign = 'center';
-                                                ctx.fillText('雷达图数据', canvas.width / 2, canvas.height / 2 - 10);
-                                                ctx.fillText('(图表渲染失败)', canvas.width / 2, canvas.height / 2 + 10);
-                                            }
-                                        }
-                                    });
-                                } else {
-                                    console.warn('No embedded chart data or canvases found in desktop PDF');
-                                    // Try fallback method - get from parent window
-                                    if (window.opener) {
-                                        try {
-                                            const parentCharts = window.opener.document.querySelectorAll('canvas[id="polygonChartCanvas"]');
-                                            if (parentCharts.length > 0 && printCharts.length > 0) {
-                                                const parentChart = parentCharts[0];
-                                                if (parentChart.dataset.chartData) {
-                                                    const chartData = JSON.parse(parentChart.dataset.chartData);
-                                                    if (typeof Chart !== 'undefined') {
-                                                        Chart.register(ChartDataLabels);
-                                                        new Chart(printCharts[0], chartData);
-                                                        console.log('Chart rendered from parent window data in desktop PDF');
-                                                    }
-                                                }
-                                            }
-                                        } catch (e) {
-                                            console.error('Fallback chart rendering failed in desktop PDF:', e);
-                                        }
-                                    }
-                                }
-                                
-                                // Auto-trigger print dialog after a short delay
-                                setTimeout(function() {
-                                    window.print();
-                                    // Close the window after printing (optional)
-                                    setTimeout(function() {
-                                        window.close();
-                                    }, 1000);
-                                }, 1500); // Increased delay to ensure charts render
-                            }, 1000);
-                        });
-                    </script>
-                </body>
-                </html>
-            `;
-
-            // Write content to the new window
-            printWindow.document.write(printHTML);
-            printWindow.document.close();
-
-            // Success message
-            if (isMobileDevice()) {
-                alert('PDF打印窗口已打开！📱\n\n📄 操作步骤：\n1️⃣ 在打印对话框中选择"保存为PDF"\n2️⃣ 选择保存位置\n3️⃣ 点击保存\n\n💡 如果无法保存PDF，建议使用"保存为图片"功能');
             } else {
-                alert('PDF打印窗口已打开！\n\n📄 操作步骤：\n1️⃣ 在打印对话框中选择"保存为PDF"\n2️⃣ 选择保存位置\n3️⃣ 点击保存\n\n💡 如果没有自动弹出打印对话框，请手动按 Ctrl+P (Windows) 或 Cmd+P (Mac)');
+                // 桌面端直接下载
+                console.log('桌面设备检测到，直接下载PDF文件...');
+                pdf.save(filename);
+                alert('PDF生成成功！💻✨\n\n文件已保存为真正的PDF格式，可在所有设备上正常查看。');
             }
 
         } catch (error) {
-            console.error('PDF generation failed:', error);
+            console.error('PDF生成失败:', error);
+            
+            // 提供设备特定的错误信息和替代方案
             if (isIPad()) {
-                alert(`iPad PDF生成失败：${error.message}\n\n🔧 iPad替代方案：\n1️⃣ 使用"保存为图片"功能\n3️2️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
+                alert(`iPad PDF生成失败：${error.message}\n\n🔧 iPad替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用iPad截屏功能保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
             } else if (/Android/.test(navigator.userAgent)) {
-                alert(`Android PDF生成失败：${error.message}\n\n🔧 Android替代方案：\n1️⃣ 使用"保存/复制图片"功能\n3️2️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在浏览器中手动打印当前页面`);
+                alert(`Android PDF生成失败：${error.message}\n\n🔧 Android替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在浏览器中手动打印当前页面`);
             } else if (/iPhone/.test(navigator.userAgent)) {
                 alert(`iPhone PDF生成失败：${error.message}\n\n🔧 iPhone替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
             } else if (isMobileDevice()) {
@@ -809,9 +639,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Reset button state
             savePdfBtn.disabled = false;
             if (isIPad()) {
-                savePdfBtn.textContent = '打印为PDF';
+                savePdfBtn.textContent = '保存为PDF';
             } else if (isMobileDevice()) {
-                savePdfBtn.textContent = '分享/保存PDF';
+                savePdfBtn.textContent = '保存为PDF';
             } else {
                 savePdfBtn.textContent = '保存为PDF';
             }
