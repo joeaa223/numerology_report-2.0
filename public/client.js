@@ -254,9 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isIPad()) {
                 saveImageBtn.textContent = getShareCapabilities().canShareFiles ? '分享/保存图片' : '保存图片';
                 savePdfBtn.textContent = '打印为PDF';
-            } else if (/Android/.test(navigator.userAgent)) {
-                saveImageBtn.textContent = getShareCapabilities().canShareFiles ? '分享/保存图片' : '保存图片';
-                savePdfBtn.textContent = '生成PDF文件';
             } else if (isMobileDevice()) {
                 saveImageBtn.textContent = getShareCapabilities().canShareFiles ? '分享/保存图片' : '保存图片';
                 savePdfBtn.textContent = '分享/保存PDF';
@@ -481,8 +478,6 @@ document.addEventListener('DOMContentLoaded', () => {
         savePdfBtn.disabled = true;
         if (isIPad()) {
             savePdfBtn.textContent = '正在准备打印...';
-        } else if (/Android/.test(navigator.userAgent)) {
-            savePdfBtn.textContent = '正在生成PDF文件...';
         } else if (isMobileDevice()) {
             savePdfBtn.textContent = '正在准备分享...';
         } else {
@@ -528,39 +523,21 @@ document.addEventListener('DOMContentLoaded', () => {
                             alert('报告分享成功！📱✨\n\n📄 iPhone用户操作：\n1️⃣ 打开分享的文件\n2️⃣ 点击分享按钮\n3️⃣ 选择"打印"\n4️⃣ 选择"保存为PDF"\n\n💡 此版本已针对iPhone优化，图表将正常显示');
                             return;
                         } else {
-                            // For Android and other devices, try to generate real PDF
-                            console.log('Android/Other device detected, attempting real PDF generation...');
-                            try {
-                                const pdfBlob = await generateRealPDF();
-                                const pdfFile = new File([pdfBlob], filename, { type: 'application/pdf' });
-                                
-                                const shareData = {
-                                    files: [pdfFile],
-                                    title: '儿童命理报告 - PDF版本',
-                                    text: '我的孩子的数字命理与发展指南报告（真实PDF格式）'
-                                };
+                            // For Android and other devices, use static content for better compatibility
+                            console.log('Android/Other device detected, using static PDF content...');
+                            const staticPdfContent = await generateStaticMobilePDFContent();
+                            const pdfBlob = new Blob([staticPdfContent], { type: 'text/html' });
+                            const htmlFile = new File([pdfBlob], filename.replace('.pdf', '.html'), { type: 'text/html' });
+                            
+                            const shareData = {
+                                files: [htmlFile],
+                                title: '儿童命理报告 - PDF版本',
+                                text: '我的孩子的数字命理与发展指南报告（Android优化版）'
+                            };
 
-                                await navigator.share(shareData);
-                                alert('PDF报告分享成功！📱✨\n\n📄 这是真正的PDF文件，可以直接打开和分享\n💡 文件已保存为PDF格式，无需额外转换');
-                                return;
-                            } catch (pdfError) {
-                                console.log('Real PDF generation failed, falling back to HTML method:', pdfError);
-                                
-                                // Fallback to HTML method
-                                const pdfContent = await generateMobilePDFContent();
-                                const htmlBlob = new Blob([pdfContent], { type: 'text/html' });
-                                const htmlFile = new File([htmlBlob], filename.replace('.pdf', '.html'), { type: 'text/html' });
-                                
-                                const shareData = {
-                                    files: [htmlFile],
-                                    title: '儿童命理报告 - HTML版本',
-                                    text: '我的孩子的数字命理与发展指南报告（HTML格式，可打印为PDF）'
-                                };
-
-                                await navigator.share(shareData);
-                                alert('报告分享成功！📱✨\n\n📄 操作步骤：\n1️⃣ 在分享的文件中选择"打印"\n2️⃣ 选择"保存为PDF"\n3️⃣ 保存到您的设备\n\n💡 如果PDF生成失败，这是HTML格式的备用方案');
-                                return;
-                            }
+                            await navigator.share(shareData);
+                            alert('报告分享成功！📱✨\n\n📄 Android用户操作：\n1️⃣ 打开分享的文件\n2️⃣ 点击分享按钮\n3️⃣ 选择"打印"\n4️⃣ 选择"保存为PDF"\n\n💡 此版本已针对Android优化，图表将正常显示');
+                            return;
                         }
                         
                     } catch (shareError) {
@@ -570,24 +547,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Mobile fallback: Use a simplified print approach
                 try {
-                    if (/iPhone/.test(navigator.userAgent)) {
+                    if (/iPhone/.test(navigator.userAgent) || /Android/.test(navigator.userAgent)) {
                         await generateStaticMobilePDF();
-                    } else if (/Android/.test(navigator.userAgent)) {
-                        // For Android, try real PDF first, then fallback to HTML
-                        try {
-                            const pdfBlob = await generateRealPDF();
-                            const url = URL.createObjectURL(pdfBlob);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = `儿童命理报告_${birthdayInput.value.replace(/-/g, '')}.pdf`;
-                            link.click();
-                            URL.revokeObjectURL(url);
-                            alert('PDF报告已下载！📱✨\n\n📄 这是真正的PDF文件，可以直接打开和分享');
-                            return;
-                        } catch (pdfError) {
-                            console.log('Android PDF generation failed, trying HTML method:', pdfError);
-                            await generateMobilePDF();
-                        }
                     } else {
                         await generateMobilePDF();
                     }
@@ -836,9 +797,11 @@ document.addEventListener('DOMContentLoaded', () => {
             if (isIPad()) {
                 alert(`iPad PDF生成失败：${error.message}\n\n🔧 iPad替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用iPad截屏功能保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
             } else if (/Android/.test(navigator.userAgent)) {
-                alert(`Android PDF生成失败：${error.message}\n\n🔧 Android替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试使用"分享/保存PDF"功能`);
+                alert(`Android PDF生成失败：${error.message}\n\n🔧 Android替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在浏览器中手动打印当前页面`);
+            } else if (/iPhone/.test(navigator.userAgent)) {
+                alert(`iPhone PDF生成失败：${error.message}\n\n🔧 iPhone替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
             } else if (isMobileDevice()) {
-                alert(`PDF生成失败：${error.message}\n\n🔧 移动端替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF`);
+                alert(`移动端PDF生成失败：${error.message}\n\n🔧 移动端替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF`);
             } else {
                 alert(`PDF生成失败：${error.message}\n\n🔧 替代方案：\n1️⃣ 使用浏览器菜单：文件 → 打印 → 保存为PDF\n2️⃣ 按快捷键：Ctrl+P (Windows) 或 Cmd+P (Mac)\n3️⃣ 使用"保存为图片"功能作为备选`);
             }
@@ -847,8 +810,6 @@ document.addEventListener('DOMContentLoaded', () => {
             savePdfBtn.disabled = false;
             if (isIPad()) {
                 savePdfBtn.textContent = '打印为PDF';
-            } else if (/Android/.test(navigator.userAgent)) {
-                savePdfBtn.textContent = '生成PDF文件';
             } else if (isMobileDevice()) {
                 savePdfBtn.textContent = '分享/保存PDF';
             } else {
@@ -857,9 +818,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // iPhone-specific static PDF generation
+    // Mobile-optimized static PDF generation
     async function generateStaticMobilePDFContent() {
-        console.log('Generating static PDF content for iPhone...');
+        console.log('Generating static PDF content for mobile devices...');
         
         // Wait for charts to be fully rendered
         const charts = reportContainer.querySelectorAll('canvas');
@@ -874,9 +835,9 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 // Convert canvas to base64 image
                 chartImageData = polygonCanvas.toDataURL('image/png', 1.0);
-                console.log('Chart image data generated for iPhone PDF');
+                console.log('Chart image data generated for mobile PDF');
             } catch (e) {
-                console.error('Failed to generate chart image for iPhone PDF:', e);
+                console.error('Failed to generate chart image for mobile PDF:', e);
             }
         }
 
@@ -891,14 +852,14 @@ document.addEventListener('DOMContentLoaded', () => {
             );
         }
 
-        // Create iPhone-optimized HTML for PDF
-        const iPhoneHTML = `
+        // Create mobile-optimized HTML for PDF
+        const mobileHTML = `
             <!DOCTYPE html>
             <html lang="zh-CN">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>儿童命理报告 - iPhone版</title>
+                <title>儿童命理报告 - 移动端版</title>
                 <style>
                     @page {
                         margin: 10mm;
@@ -997,13 +958,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${reportContent}
                 </div>
                 <div style="text-align: center; margin-top: 30px; color: #666; font-size: 0.8em;">
-                    <p>📱 iPhone优化版本 | 数字命理与发展指南</p>
+                    <p>📱 移动端优化版本 | 数字命理与发展指南</p>
                 </div>
             </body>
             </html>
         `;
         
-        return iPhoneHTML;
+        return mobileHTML;
     }
 
     // Mobile PDF generation helper functions
@@ -1296,16 +1257,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function generateStaticMobilePDF() {
-        console.log('Generating static mobile PDF using iPhone-optimized method...');
+        console.log('Generating static mobile PDF using optimized method...');
         
-        // Create iPhone-optimized print content
+        // Create static print content
         const printContent = await generateStaticMobilePDFContent();
         
-        // Check if it's iPad (iPad has larger screen and different behavior)
+        // Check device type
         const isIPadDevice = isIPad();
+        const isAndroid = /Android/.test(navigator.userAgent);
+        const isiPhone = /iPhone/.test(navigator.userAgent);
         
         if (isIPadDevice) {
-            console.log('iPad detected with iPhone method, using blob URL approach');
+            console.log('iPad detected, using blob URL approach');
             
             // For iPad, try blob URL approach
             const blob = new Blob([printContent], { type: 'text/html' });
@@ -1324,7 +1287,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }, 2000);
                 
-                alert('报告已在新窗口中打开！📱\n\n📄 iPad保存为PDF步骤：\n1️⃣ 在新窗口中点击分享按钮（□）\n2️⃣ 选择"打印"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置\n\n💡 此版本已针对iPhone/iPad优化，图表将正常显示');
+                alert('报告已在新窗口中打开！📱\n\n📄 iPad保存为PDF步骤：\n1️⃣ 在新窗口中点击分享按钮（□）\n2️⃣ 选择"打印"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置\n\n💡 此版本已针对iPad优化，图表将正常显示');
                 
                 // Clean up blob URL after a delay
                 setTimeout(() => {
@@ -1333,7 +1296,30 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 throw new Error('iPad无法打开新窗口，请尝试使用"保存为图片"功能');
             }
-        } else {
+        } else if (isAndroid) {
+            console.log('Android detected, using data URL approach');
+            
+            // For Android, use data URL approach with static content
+            const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(printContent);
+            
+            const printWindow = window.open(dataUrl, '_blank');
+            
+            if (printWindow) {
+                setTimeout(() => {
+                    try {
+                        printWindow.print();
+                    } catch (e) {
+                        console.log('Auto-print failed on Android:', e);
+                    }
+                }, 2000);
+                
+                alert('报告已在新窗口中打开！📱\n\n📄 Android保存为PDF步骤：\n1️⃣ 在新窗口中点击菜单按钮\n2️⃣ 选择"打印"或"分享"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置\n\n💡 此版本已针对Android优化，图表将正常显示');
+            } else {
+                throw new Error('Android无法打开新窗口，请尝试使用"保存为图片"功能');
+            }
+        } else if (isiPhone) {
+            console.log('iPhone detected, using data URL approach');
+            
             // For iPhone, use data URL approach with static content
             const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(printContent);
             
@@ -1352,97 +1338,25 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 throw new Error('iPhone无法打开新窗口，请尝试使用"保存为图片"功能');
             }
-        }
-    }
-
-    // Generate real PDF for Android devices
-    async function generateRealPDF() {
-        console.log('Generating real PDF for Android...');
-        
-        // Wait for charts to be fully rendered
-        const charts = reportContainer.querySelectorAll('canvas');
-        if (charts.length > 0) {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-        }
-
-        try {
-            // Check if html2pdf is available
-            if (typeof html2pdf === 'undefined') {
-                throw new Error('html2pdf library not available');
-            }
-
-            // Configure PDF options
-            const pdfOptions = {
-                margin: [10, 10, 10, 10],
-                filename: `儿童命理报告_${birthdayInput.value.replace(/-/g, '')}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { 
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: true,
-                    backgroundColor: '#ffffff'
-                },
-                jsPDF: { 
-                    unit: 'mm', 
-                    format: 'a4', 
-                    orientation: 'portrait' 
-                }
-            };
-
-            // Create a temporary container for PDF generation
-            const tempContainer = document.createElement('div');
-            tempContainer.style.position = 'absolute';
-            tempContainer.style.left = '-9999px';
-            tempContainer.style.top = '0';
-            tempContainer.style.width = '800px';
-            tempContainer.style.backgroundColor = '#ffffff';
-            tempContainer.style.padding = '20px';
-            tempContainer.style.fontFamily = 'Arial, sans-serif';
-            tempContainer.style.fontSize = '14px';
-            tempContainer.style.lineHeight = '1.5';
-            tempContainer.style.color = '#333';
-
-            // Clone the report content
-            const reportClone = reportContainer.cloneNode(true);
+        } else {
+            // For other mobile devices
+            const dataUrl = 'data:text/html;charset=utf-8,' + encodeURIComponent(printContent);
             
-            // Convert canvas charts to images
-            const canvases = reportClone.querySelectorAll('canvas');
-            for (const canvas of canvases) {
-                try {
-                    const img = document.createElement('img');
-                    img.src = canvas.toDataURL('image/png', 1.0);
-                    img.style.maxWidth = '100%';
-                    img.style.height = 'auto';
-                    img.style.display = 'block';
-                    img.style.margin = '10px auto';
-                    img.alt = '图表';
-                    
-                    // Replace canvas with image
-                    canvas.parentNode.replaceChild(img, canvas);
-                } catch (e) {
-                    console.error('Failed to convert canvas to image:', e);
-                }
+            const printWindow = window.open(dataUrl, '_blank');
+            
+            if (printWindow) {
+                setTimeout(() => {
+                    try {
+                        printWindow.print();
+                    } catch (e) {
+                        console.log('Auto-print failed on mobile:', e);
+                    }
+                }, 2000);
+                
+                alert('报告已在新窗口中打开！📱\n\n📄 保存为PDF步骤：\n1️⃣ 在新窗口中点击菜单按钮\n2️⃣ 选择"打印"或"分享"\n3️⃣ 选择"保存为PDF"\n4️⃣ 选择保存位置\n\n💡 此版本已针对移动端优化，图表将正常显示');
+            } else {
+                throw new Error('无法打开新窗口，请尝试使用"保存为图片"功能');
             }
-
-            // Add the cloned content to temp container
-            tempContainer.appendChild(reportClone);
-            document.body.appendChild(tempContainer);
-
-            // Generate PDF
-            const pdfBlob = await html2pdf()
-                .from(tempContainer)
-                .set(pdfOptions)
-                .outputPdf('blob');
-
-            // Clean up
-            document.body.removeChild(tempContainer);
-
-            console.log('Real PDF generated successfully');
-            return pdfBlob;
-
-        } catch (error) {
-            console.error('Real PDF generation failed:', error);
-            throw error;
         }
     }
 
