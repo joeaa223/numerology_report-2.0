@@ -795,9 +795,9 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error('PDF generation failed:', error);
             if (isIPad()) {
-                alert(`iPad PDF生成失败：${error.message}\n\n🔧 iPad替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用iPad截屏功能保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
+                alert(`iPad PDF生成失败：${error.message}\n\n🔧 iPad替代方案：\n1️⃣ 使用"保存为图片"功能\n3️2️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
             } else if (/Android/.test(navigator.userAgent)) {
-                alert(`Android PDF生成失败：${error.message}\n\n🔧 Android替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在浏览器中手动打印当前页面`);
+                alert(`Android PDF生成失败：${error.message}\n\n🔧 Android替代方案：\n1️⃣ 使用"保存/复制图片"功能\n3️2️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在浏览器中手动打印当前页面`);
             } else if (/iPhone/.test(navigator.userAgent)) {
                 alert(`iPhone PDF生成失败：${error.message}\n\n🔧 iPhone替代方案：\n1️⃣ 使用"保存为图片"功能\n2️⃣ 使用手机截屏保存报告\n3️⃣ 在电脑端打开网站生成PDF\n4️⃣ 尝试在Safari中手动打印当前页面`);
             } else if (isMobileDevice()) {
